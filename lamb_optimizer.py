@@ -33,7 +33,7 @@ class LAMBOptimizer(tf.train.Optimizer):
   # A new optimizer that includes correct L2 weight decay, adaptive
   # element-wise updating, and layer-wise justification. The LAMB optimizer
   # was proposed by Yang You, Jing Li, Jonathan Hseu, Xiaodan Song,
-  # James Demmel, and Cho-Jui Hsieh in a paper titled as Reducing ALBERT
+  # James Demmel, and Cho-Jui Hsieh in a paper titled as Reducing BERT
   # Pre-Training Time from 3 Days to 76 Minutes (arxiv.org/abs/1904.00962)
 
   def __init__(self,
