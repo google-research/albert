@@ -1,4 +1,6 @@
 #!/bin/bash
+# Small integration test script.
+
 set -e
 set -x
 
