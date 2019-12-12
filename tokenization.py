@@ -82,7 +82,7 @@ def validate_case_matches_checkpoint(do_lower_case, init_checkpoint):
                                           model_name, case_name, opposite_flag))
 
 
-def preprocess_text(inputs, remove_space=True, lower=False):
+def preprocess_text(inputs, remove_space=True, lower=False, uncased=True):
   """preprocess data by removing extra space and normalize data."""
   outputs = inputs
   if remove_space:
@@ -95,7 +95,8 @@ def preprocess_text(inputs, remove_space=True, lower=False):
       outputs = six.ensure_text(outputs, "latin-1")
 
   outputs = unicodedata.normalize("NFKD", outputs)
-  outputs = "".join([c for c in outputs if not unicodedata.combining(c)])
+  if uncased:
+    outputs = "".join([c for c in outputs if not unicodedata.combining(c)])
   if lower:
     outputs = outputs.lower()
 
