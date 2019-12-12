@@ -52,6 +52,10 @@ flags.DEFINE_bool(
     "models and False for cased models.")
 
 flags.DEFINE_bool(
+    "do_uncased", True,
+    "Whether to set for uncased models and False for languages with non-Latin alphabets models")
+
+flags.DEFINE_bool(
     "do_whole_word_mask", True,
     "Whether to use whole word masking rather than per-WordPiece masking.")
 
@@ -233,7 +237,7 @@ def create_training_instances(input_files, tokenizer, max_seq_length,
         if not line:
           break
         if FLAGS.spm_model_file:
-          line = tokenization.preprocess_text(line, lower=FLAGS.do_lower_case)
+          line = tokenization.preprocess_text(line, lower=FLAGS.do_lower_case, uncased=FLAGS.do_uncased)
         else:
           line = line.strip()
 
