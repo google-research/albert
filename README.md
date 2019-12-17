@@ -29,8 +29,6 @@ The result comparsion to the v1 models are as followings:
 
 The comparison shows that for ALBERT-base, ALBERT-large, and ALBERT-xlarge, v2 is much better than v1, indicating the importance of applying the above three strategies. On average, ALBERT-xxlarge is slightly worse than the v1, because of the following two reasons: 1) Training additional 1.5 M steps (the only difference between these two models are training for 1.5M steps and 3M steps) did not lead to significant performance improvement. 2) For v1, we did a little bit hyperparameter search among the parameters sets given by BERT, Roberta, and XLnet. For v2, we simply adopt the parameters from v1 except for RACE, where we use a learning rate of 1e-5 and 0 [ALBERT DR](https://arxiv.org/pdf/1909.11942.pdf) (droput rate for ALBERT in finetuning). The original (v1) RACE hyperpamter will cause model divergence for v2 models. Given that the downstream tasks are sensitive to the fine-tuning hyperparameters, we should be careful about so called slight improvements.
 
-
-
 ALBERT is "A Lite" version of BERT, a popular unsupervised language
 representation learning algorithm. ALBERT uses parameter-reduction techniques
 that allow for large-scale configurations, overcome previous memory limitations,
