@@ -32,7 +32,7 @@ import numpy as np
 import six
 from six.moves import map
 from six.moves import range
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 from tensorflow.contrib import data as contrib_data
 from tensorflow.contrib import layers as contrib_layers
 from tensorflow.contrib import tpu as contrib_tpu

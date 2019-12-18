@@ -22,7 +22,7 @@ import re
 import lamb_optimizer
 import six
 from six.moves import zip
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 from tensorflow.contrib import tpu as contrib_tpu
 
 
