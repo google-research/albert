@@ -247,9 +247,10 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
     tok_start_to_chartok_index = []
     tok_end_to_chartok_index = []
     char_cnt = 0
+    para_tokens = [six.ensure_text(token, "utf-8") for token in para_tokens]
     for i, token in enumerate(para_tokens):
-      new_token = six.ensure_binary(token).replace(
-          tokenization.SPIECE_UNDERLINE, b" ")
+      new_token = six.ensure_text(token).replace(
+          tokenization.SPIECE_UNDERLINE.decode("utf-8"), " ")
       chartok_to_tok_index.extend([i] * len(new_token))
       tok_start_to_chartok_index.append(char_cnt)
       char_cnt += len(new_token)
@@ -836,7 +837,6 @@ def v1_model_fn_builder(albert_config, init_checkpoint, learning_rate,
     else:
       raise ValueError(
           "Only TRAIN and PREDICT modes are supported: %s" % (mode))
-
     return output_spec
 
   return model_fn
@@ -1666,14 +1666,8 @@ def v2_model_fn_builder(albert_config, init_checkpoint, learning_rate,
           "end_top_log_probs": outputs["end_top_log_probs"],
           "cls_logits": outputs["cls_logits"]
       }
-
-      if use_tpu:
-        output_spec = contrib_tpu.TPUEstimatorSpec(
-            mode=mode, predictions=predictions, scaffold_fn=scaffold_fn)
-      else:
-        output_spec = tf.estimator.EstimatorSpec(
-            mode=mode, predictions=predictions)
-      return output_spec
+      output_spec = contrib_tpu.TPUEstimatorSpec(
+          mode=mode, predictions=predictions, scaffold_fn=scaffold_fn)
     else:
       raise ValueError(
           "Only TRAIN and PREDICT modes are supported: %s" % (mode))
