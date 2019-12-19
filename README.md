@@ -114,7 +114,6 @@ Use `run_pretraining.py` to pretrain ALBERT:
 pip install -r albert/requirements.txt
 python -m albert.run_pretraining \
     --output_dir="${OUTPUT_DIR}" \
-    --export_dir="${EXPORT_DIR}" \
     --do_train \
     --do_eval \
     <additional flags>

@@ -159,7 +159,6 @@ def main(_):
     global_step = -1
     output_eval_file = os.path.join(FLAGS.output_dir, "eval_results.txt")
     writer = tf.io.gfile.GFile(output_eval_file, "w")
-    tf.io.gfile.makedirs(FLAGS.export_dir)
     eval_input_fn = run_pretraining.input_fn_builder(
         input_files=input_files,
         max_seq_length=FLAGS.max_seq_length,
@@ -180,5 +179,4 @@ def main(_):
 
 if __name__ == "__main__":
   flags.mark_flag_as_required("output_dir")
-  flags.mark_flag_as_required("export_dir")
   tf.app.run()
