@@ -26,7 +26,7 @@ import random
 import time
 
 import modeling
-from garcon.albert import squad_utils
+import squad_utils
 import tokenization
 import six
 import tensorflow as tf
