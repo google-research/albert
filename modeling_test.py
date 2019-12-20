@@ -25,7 +25,7 @@ import re
 import modeling
 import six
 from six.moves import range
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 
 class AlbertModelTest(tf.test.TestCase):
