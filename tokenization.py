@@ -26,6 +26,7 @@ import unicodedata
 import six
 from six.moves import range
 import tensorflow.compat.v1 as tf
+import tensorflow_hub as hub
 import sentencepiece as spm
 
 SPIECE_UNDERLINE = u"▁".encode("utf-8")
@@ -247,6 +248,25 @@ class FullTokenizer(object):
       self.basic_tokenizer = BasicTokenizer(do_lower_case=do_lower_case)
       self.wordpiece_tokenizer = WordpieceTokenizer(vocab=self.vocab)
     self.inv_vocab = {v: k for k, v in self.vocab.items()}
+
+  @classmethod
+  def from_scratch(cls, vocab_file, do_lower_case, spm_model_file):
+    return FullTokenizer(vocab_file, do_lower_case, spm_model_file)
+
+  @classmethod
+  def from_hub_module(cls, hub_module, spm_model_file):
+    """Get the vocab file and casing info from the Hub module."""
+    with tf.Graph().as_default():
+      albert_module = hub.Module(hub_module)
+      tokenization_info = albert_module(signature="tokenization_info",
+                                        as_dict=True)
+      with tf.Session() as sess:
+        vocab_file, do_lower_case = sess.run(
+            [tokenization_info["vocab_file"],
+             tokenization_info["do_lower_case"]])
+    return FullTokenizer(
+        vocab_file=vocab_file, do_lower_case=do_lower_case,
+        spm_model_file=spm_model_file)
 
   def tokenize(self, text):
     if self.sp_model:

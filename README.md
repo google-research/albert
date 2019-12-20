@@ -125,7 +125,9 @@ For XNLI, COLA, MNLI, and MRPC, use `run_classifier_sp.py`:
 
 ```
 pip install -r albert/requirements.txt
-python -m albert.run_classifier_sp \
+python -m albert.run_classifier \
+  --albert_config_file=albert_config.json \
+  --init_checkpoint=/path/to/ckpt \
   --task_name=MNLI \
   <additional flags>
 ```
@@ -142,12 +144,12 @@ You should see some output like this:
   sentence_order_loss = ...
 ```
 
-You can also fine-tune the model starting from TF-Hub modules using
-`run_classifier_with_tfhub.py`:
+You can also fine-tune the model starting from TF-Hub modules:
 
 ```
 pip install -r albert/requirements.txt
-python -m albert.run_classifier_with_tfhub \
+python -m albert.run_classifier \
   --albert_hub_module_handle=https://tfhub.dev/google/albert_base/1 \
+  --task_name=MNLI \
   <additional flags>
 ```

@@ -25,6 +25,7 @@ import modeling
 import optimization
 import tokenization
 import tensorflow.compat.v1 as tf
+import tensorflow_hub as hub
 from tensorflow.contrib import data as contrib_data
 from tensorflow.contrib import metrics as contrib_metrics
 from tensorflow.contrib import tpu as contrib_tpu
@@ -765,9 +766,28 @@ def _truncate_seq_pair(tokens_a, tokens_b, max_length):
       tokens_b.pop()
 
 
-def create_model(albert_config, is_training, input_ids, input_mask, segment_ids,
-                 labels, num_labels, use_one_hot_embeddings, task_name):
-  """Creates a classification model."""
+def _create_model_from_hub(hub_module, is_training, input_ids, input_mask,
+                           segment_ids):
+  """Creates an ALBERT model from TF-Hub."""
+  tags = set()
+  if is_training:
+    tags.add("train")
+  albert_module = hub.Module(hub_module, tags=tags, trainable=True)
+  albert_inputs = dict(
+      input_ids=input_ids,
+      input_mask=input_mask,
+      segment_ids=segment_ids)
+  albert_outputs = albert_module(
+      inputs=albert_inputs,
+      signature="tokens",
+      as_dict=True)
+  output_layer = albert_outputs["pooled_output"]
+  return output_layer
+
+
+def _create_model_from_scratch(albert_config, is_training, input_ids,
+                               input_mask, segment_ids, use_one_hot_embeddings):
+  """Creates an ALBERT model from scratch (as opposed to hub)."""
   model = modeling.AlbertModel(
       config=albert_config,
       is_training=is_training,
@@ -775,13 +795,24 @@ def create_model(albert_config, is_training, input_ids, input_mask, segment_ids,
       input_mask=input_mask,
       token_type_ids=segment_ids,
       use_one_hot_embeddings=use_one_hot_embeddings)
-
-  # In the demo, we are doing a simple classification task on the entire
-  # segment.
-  #
-  # If you want to use the token-level output, use model.get_sequence_output()
-  # instead.
   output_layer = model.get_pooled_output()
+  return output_layer
+
+
+def create_model(albert_config, is_training, input_ids, input_mask, segment_ids,
+                 labels, num_labels, use_one_hot_embeddings, task_name,
+                 hub_module):
+  """Creates a classification model."""
+  if hub_module:
+    tf.logging.info("creating model from hub_module: %s", hub_module)
+    output_layer = _create_model_from_hub(hub_module, is_training, input_ids,
+                                          input_mask, segment_ids)
+  else:
+    tf.logging.info("creating model from albert_config")
+    output_layer = _create_model_from_scratch(albert_config, is_training,
+                                              input_ids, input_mask,
+                                              segment_ids,
+                                              use_one_hot_embeddings)
 
   hidden_size = output_layer.shape[-1].value
 
@@ -818,7 +849,8 @@ def create_model(albert_config, is_training, input_ids, input_mask, segment_ids,
 
 def model_fn_builder(albert_config, num_labels, init_checkpoint, learning_rate,
                      num_train_steps, num_warmup_steps, use_tpu,
-                     use_one_hot_embeddings, task_name, optimizer="adamw"):
+                     use_one_hot_embeddings, task_name, hub_module=None,
+                     optimizer="adamw"):
   """Returns `model_fn` closure for TPUEstimator."""
 
   def model_fn(features, labels, mode, params):  # pylint: disable=unused-argument
@@ -843,7 +875,7 @@ def model_fn_builder(albert_config, num_labels, init_checkpoint, learning_rate,
     (total_loss, per_example_loss, probabilities, logits, predictions) = \
         create_model(albert_config, is_training, input_ids, input_mask,
                      segment_ids, label_ids, num_labels,
-                     use_one_hot_embeddings, task_name)
+                     use_one_hot_embeddings, task_name, hub_module)
 
     tvars = tf.trainable_variables()
     initialized_variable_names = {}

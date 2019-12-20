@@ -65,6 +65,10 @@ flags.DEFINE_string(
     "init_checkpoint", None,
     "Initial checkpoint (usually from a pre-trained BERT model).")
 
+flags.DEFINE_string(
+    "albert_hub_module_handle", None,
+    "If set, the ALBERT hub module to use.")
+
 flags.DEFINE_bool(
     "do_lower_case", True,
     "Whether to lower case the input text. Should be True for uncased "
@@ -160,13 +164,20 @@ def main(_):
     raise ValueError(
         "At least one of `do_train`, `do_eval` or `do_predict' must be True.")
 
-  albert_config = modeling.AlbertConfig.from_json_file(FLAGS.albert_config_file)
+  if not FLAGS.albert_config_file and not FLAGS.albert_hub_module_handle:
+    raise ValueError("At least one of `--albert_config_file` and "
+                     "`--albert_hub_module_handle` must be set")
 
-  if FLAGS.max_seq_length > albert_config.max_position_embeddings:
-    raise ValueError(
-        "Cannot use sequence length %d because the ALBERT model "
-        "was only trained up to sequence length %d" %
-        (FLAGS.max_seq_length, albert_config.max_position_embeddings))
+  if FLAGS.albert_config_file:
+    albert_config = modeling.AlbertConfig.from_json_file(
+        FLAGS.albert_config_file)
+    if FLAGS.max_seq_length > albert_config.max_position_embeddings:
+      raise ValueError(
+          "Cannot use sequence length %d because the ALBERT model "
+          "was only trained up to sequence length %d" %
+          (FLAGS.max_seq_length, albert_config.max_position_embeddings))
+  else:
+    albert_config = None  # Get the config from TF-Hub.
 
   tf.gfile.MakeDirs(FLAGS.output_dir)
 
@@ -181,9 +192,14 @@ def main(_):
 
   label_list = processor.get_labels()
 
-  tokenizer = tokenization.FullTokenizer(
-      vocab_file=FLAGS.vocab_file, do_lower_case=FLAGS.do_lower_case,
-      spm_model_file=FLAGS.spm_model_file)
+  if FLAGS.albert_hub_module_handle:
+    tokenizer = tokenization.FullTokenizer.from_hub_module(
+        hub_module=FLAGS.albert_hub_module_handle,
+        spm_model_file=FLAGS.spm_model_file)
+  else:
+    tokenizer = tokenization.FullTokenizer.from_scratch(
+        vocab_file=FLAGS.vocab_file, do_lower_case=FLAGS.do_lower_case,
+        spm_model_file=FLAGS.spm_model_file)
 
   tpu_cluster_resolver = None
   if FLAGS.use_tpu and FLAGS.tpu_name:
@@ -220,6 +236,7 @@ def main(_):
       use_tpu=FLAGS.use_tpu,
       use_one_hot_embeddings=FLAGS.use_tpu,
       task_name=task_name,
+      hub_module=FLAGS.albert_hub_module_handle,
       optimizer=FLAGS.optimizer)
 
   # If TPU is not available, this will fall back to normal Estimator on CPU
@@ -456,6 +473,5 @@ if __name__ == "__main__":
   flags.mark_flag_as_required("data_dir")
   flags.mark_flag_as_required("task_name")
   flags.mark_flag_as_required("vocab_file")
-  flags.mark_flag_as_required("albert_config_file")
   flags.mark_flag_as_required("output_dir")
   tf.app.run()
