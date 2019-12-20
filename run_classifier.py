@@ -70,6 +70,10 @@ flags.DEFINE_bool(
     "Whether to lower case the input text. Should be True for uncased "
     "models and False for cased models.")
 
+flags.DEFINE_bool(
+    "do_uncased", True,
+    "Whether to set for uncased models and False for languages with non-Latin alphabets models")
+
 flags.DEFINE_integer(
     "max_seq_length", 512,
     "The maximum total input sequence length after WordPiece tokenization. "
@@ -177,7 +181,8 @@ def main(_):
 
   processor = processors[task_name](
       use_spm=True if FLAGS.spm_model_file else False,
-      do_lower_case=FLAGS.do_lower_case)
+      do_lower_case=FLAGS.do_lower_case,
+      do_uncased=FLAGS.do_uncased)
 
   label_list = processor.get_labels()
 

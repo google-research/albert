@@ -87,10 +87,11 @@ class InputFeatures(object):
 class DataProcessor(object):
   """Base class for data converters for sequence classification data sets."""
 
-  def __init__(self, use_spm, do_lower_case):
+  def __init__(self, use_spm, do_lower_case, do_uncased):
     super(DataProcessor, self).__init__()
     self.use_spm = use_spm
     self.do_lower_case = do_lower_case
+    self.do_uncased = do_uncased
 
   def get_train_examples(self, data_dir):
     """Gets a collection of `InputExample`s for the train set."""
@@ -120,7 +121,7 @@ class DataProcessor(object):
 
   def process_text(self, text):
     if self.use_spm:
-      return tokenization.preprocess_text(text, self.do_lower_case)
+      return tokenization.preprocess_text(text, lower=self.do_lower_case, uncased=self.do_uncased)
     else:
       return tokenization.convert_to_unicode(text)
 

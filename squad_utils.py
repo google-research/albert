@@ -214,7 +214,7 @@ def _convert_index(index, pos, m=None, is_start=True):
 
 def convert_examples_to_features(examples, tokenizer, max_seq_length,
                                  doc_stride, max_query_length, is_training,
-                                 output_fn, do_lower_case):
+                                 output_fn, do_lower_case, do_uncased):
   """Loads a data file into a list of `InputBatch`s."""
 
   cnt_pos, cnt_neg = 0, 0
@@ -231,7 +231,7 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
     query_tokens = tokenization.encode_ids(
         tokenizer.sp_model,
         tokenization.preprocess_text(
-            example.question_text, lower=do_lower_case))
+            example.question_text, lower=do_lower_case, uncased=do_uncased))
 
     if len(query_tokens) > max_query_length:
       query_tokens = query_tokens[0:max_query_length]
@@ -240,7 +240,7 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
     para_tokens = tokenization.encode_pieces(
         tokenizer.sp_model,
         tokenization.preprocess_text(
-            example.paragraph_text, lower=do_lower_case),
+            example.paragraph_text, lower=do_lower_case, uncased=do_uncased),
         return_unicode=False)
 
     chartok_to_tok_index = []
@@ -293,7 +293,7 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
 
           f_prev = f[i - 1, j - 1] if i > 0 and j > 0 else 0
           if (tokenization.preprocess_text(
-              paragraph_text[i], lower=do_lower_case,
+              paragraph_text[i], lower=do_lower_case, uncased=do_uncased,
               remove_space=False) == tok_cat_text[j]
               and f_prev + 1 > f[i, j]):
             g[(i, j)] = 2

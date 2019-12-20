@@ -89,6 +89,10 @@ flags.DEFINE_bool(
     "Whether to lower case the input text. Should be True for uncased "
     "models and False for cased models.")
 
+flags.DEFINE_bool(
+    "do_uncased", True,
+    "Whether to set for uncased models and False for languages with non-Latin alphabets models")
+
 flags.DEFINE_integer(
     "max_seq_length", 384,
     "The maximum total input sequence length after WordPiece tokenization. "
@@ -278,7 +282,8 @@ def main(_):
           max_query_length=FLAGS.max_query_length,
           is_training=True,
           output_fn=train_writer.process_feature,
-          do_lower_case=FLAGS.do_lower_case)
+          do_lower_case=FLAGS.do_lower_case,
+          do_uncased=FLAGS.do_uncased)
       train_writer.close()
 
     tf.logging.info("***** Running training *****")
@@ -328,7 +333,8 @@ def main(_):
           max_query_length=FLAGS.max_query_length,
           is_training=False,
           output_fn=append_feature,
-          do_lower_case=FLAGS.do_lower_case)
+          do_lower_case=FLAGS.do_lower_case,
+          do_uncased=FLAGS.do_uncased)
       eval_writer.close()
 
       with tf.gfile.Open(FLAGS.predict_feature_left_file, "wb") as fout:
