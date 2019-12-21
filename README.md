@@ -3,12 +3,12 @@ ALBERT
 
 ***************New October 31, 2019 ***************
 
-Version 2 of ALBERT models is released. TF-Hub modules are available:
+Version 2 of ALBERT models is released.
 
-- https://tfhub.dev/google/albert_base/2
-- https://tfhub.dev/google/albert_large/2
-- https://tfhub.dev/google/albert_xlarge/2
-- https://tfhub.dev/google/albert_xxlarge/2
+- Base: [[Tar file](https://storage.googleapis.com/albert_models/albert_base_v2.tar.gz)] [[TF-Hub](https://tfhub.dev/google/albert_base/2)]
+- Large: [[Tar file](https://storage.googleapis.com/albert_models/albert_large_v2.tar.gz)] [[TF-Hub](https://tfhub.dev/google/albert_large/2) ]
+- Xlarge: [[Tar file](https://storage.googleapis.com/albert_models/albert_xlarge_v2.tar.gz)] [[TF-Hub](https://tfhub.dev/google/albert_xlarge/2)]
+- Xxlarge: [[Tar file](https://storage.googleapis.com/albert_models/albert_xxlarge_v2.tar.gz)] [[TF-Hub](https://tfhub.dev/google/albert_xxlarge/2)]
 
 In this version, we apply 'no dropout', 'additional training data' and 'long training time' strategies to all models. We train ALBERT-base for 10M steps and other models for 3M steps.
 
@@ -77,10 +77,10 @@ Pre-trained Models
 ==================
 TF-Hub modules are available:
 
-- https://tfhub.dev/google/albert_base/1
-- https://tfhub.dev/google/albert_large/1
-- https://tfhub.dev/google/albert_xlarge/1
-- https://tfhub.dev/google/albert_xxlarge/1
+- Base: [[Tar file](https://storage.googleapis.com/albert_models/albert_base_v1.tar.gz)] [[TF-Hub](https://tfhub.dev/google/albert_base/1)]
+- Large: [[Tar file](https://storage.googleapis.com/albert_models/albert_large_v1.tar.gz)] [[TF-Hub](https://tfhub.dev/google/albert_large/1)]
+- Xlarge: [[Tar file](https://storage.googleapis.com/albert_models/albert_xlarge_v1.tar.gz)] [[TF-Hub](https://tfhub.dev/google/albert_xlarge/1)]
+- Xxlarge: [[Tar file](https://storage.googleapis.com/albert_models/albert_xxlarge_v1.tar.gz)] [[TF-Hub](https://tfhub.dev/google/albert_xxlarge/1)]
 
 Example usage of the TF-Hub module:
 
