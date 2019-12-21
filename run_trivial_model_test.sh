@@ -1,5 +1,6 @@
 #!/bin/bash
 # Small integration test script.
+# The values in this file are **not** meant for reproducing actual results.
 
 set -e
 set -x
