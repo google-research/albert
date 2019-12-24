@@ -232,6 +232,7 @@ def main(_):
       cluster=tpu_cluster_resolver,
       master=FLAGS.master,
       model_dir=FLAGS.output_dir,
+      keep_checkpoint_max=0,
       save_checkpoints_steps=FLAGS.save_checkpoints_steps,
       tpu_config=contrib_tpu.TPUConfig(
           iterations_per_loop=iterations_per_loop,
