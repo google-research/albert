@@ -108,31 +108,67 @@ For a full example, see `run_classifier_with_tfhub.py`.
 
 Pre-training Instructions
 =========================
-Use `run_pretraining.py` to pretrain ALBERT:
+To pretrain ALBERT, use `run_pretraining.py`:
 
 ```
 pip install -r albert/requirements.txt
 python -m albert.run_pretraining \
-    --output_dir="${OUTPUT_DIR}" \
+    --input_file=... \
+    --output_dir=... \
+    --init_checkpoint=... \
+    --albert_config_file=... \
     --do_train \
     --do_eval \
-    <additional flags>
+    --train_batch_size=4096 \
+    --eval_batch_size=64 \
+    --max_seq_length=512 \
+    --max_predictions_per_seq=20 \
+    --optimizer='lamb' \
+    --learning_rate=.00176 \
+    --num_train_steps=125000 \
+    --num_warmup_steps=3125 \
+    --save_checkpoints_steps=5000
 ```
 
-Fine-tuning Instructions
-========================
-For XNLI, COLA, MNLI, and MRPC, use `run_classifier_sp.py`:
+Fine-tuning on GLUE
+===================
+To fine-tune and evaluate a pretrained ALBERT on GLUE, please see the
+convenience script `run_glue.sh`.
+
+Lower-level use cases may want to use the `run_classifier.py` script directly.
+The `run_classifier.py` script is used both for fine-tuning and evaluation of
+ALBERT on individual GLUE benchmark tasks, such as MNLI:
 
 ```
 pip install -r albert/requirements.txt
 python -m albert.run_classifier \
-  --albert_config_file=albert_config.json \
-  --init_checkpoint=/path/to/ckpt \
+  --vocab_file=... \
+  --data_dir=... \
+  --output_dir=... \
+  --init_checkpoint=... \
+  --albert_config_file=... \
+  --spm_model_file=... \
+  --do_train \
+  --do_eval \
+  --do_predict \
+  --do_lower_case \
+  --max_seq_length=128 \
+  --optimizer=adamw \
   --task_name=MNLI \
-  <additional flags>
+  --warmup_step=1000 \
+  --learning_rate=3e-5 \
+  --train_step=10000 \
+  --save_checkpoints_steps=100 \
+  --train_batch_size=128
 ```
 
-You should see some output like this:
+Good default flag values for each GLUE task can be found in `run_glue.sh`.
+You can fine-tune the model starting from TF-Hub modules instead of raw
+checkpoints by setting e.g.
+`--albert_hub_module_handle==https://tfhub.dev/google/albert_base/1` instead
+of `--init_checkpoint`.
+
+After evaluation, the script should report some output like this:
 
 ```
 ***** Eval results *****
@@ -144,12 +180,67 @@ You should see some output like this:
   sentence_order_loss = ...
 ```
 
-You can also fine-tune the model starting from TF-Hub modules:
+Fine-tuning on SQuAD
+====================
+To fine-tune and evaluate a pretrained model on SQuAD v1, use the
+`run_squad_v1.py` script:
 
 ```
 pip install -r albert/requirements.txt
-python -m albert.run_classifier \
-  --albert_hub_module_handle=https://tfhub.dev/google/albert_base/1 \
-  --task_name=MNLI \
-  <additional flags>
+python -m albert.run_squad_v1 \
+  --albert_config_file=... \
+  --vocab_file=... \
+  --output_dir=... \
+  --train_file=... \
+  --predict_file=... \
+  --train_feature_file=... \
+  --predict_feature_file=... \
+  --predict_feature_left_file=... \
+  --init_checkpoint=... \
+  --spm_model_file=... \
+  --do_lower_case \
+  --max_seq_length=384 \
+  --doc_stride=128 \
+  --max_query_length=64 \
+  --do_train=true \
+  --do_predict=true \
+  --train_batch_size=48 \
+  --predict_batch_size=8 \
+  --learning_rate=5e-5 \
+  --num_train_epochs=2.0 \
+  --warmup_proportion=.1 \
+  --save_checkpoints_steps=5000 \
+  --n_best_size=20 \
+  --max_answer_length=30
+```
+
+For SQuAD v2, use the `run_squad_v2.py` script:
+
+```
+pip install -r albert/requirements.txt
+python -m albert.run_squad_v2 \
+  --albert_config_file=... \
+  --vocab_file=... \
+  --output_dir=... \
+  --train_file=... \
+  --predict_file=... \
+  --train_feature_file=... \
+  --predict_feature_file=... \
+  --predict_feature_left_file=... \
+  --init_checkpoint=... \
+  --spm_model_file=... \
+  --do_lower_case \
+  --max_seq_length=384 \
+  --doc_stride=128 \
+  --max_query_length=64 \
+  --do_train \
+  --do_predict \
+  --train_batch_size=48 \
+  --predict_batch_size=8 \
+  --learning_rate=5e-5 \
+  --num_train_epochs=2.0 \
+  --warmup_proportion=.1 \
+  --save_checkpoints_steps=5000 \
+  --n_best_size=20 \
+  --max_answer_length=30
 ```
