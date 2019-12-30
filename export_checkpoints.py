@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-r"""Exports a minimal TF-Hub module for ALBERT models."""
+r"""Exports a minimal module for ALBERT models."""
 
 from __future__ import absolute_import
 from __future__ import division
@@ -37,7 +37,7 @@ flags.DEFINE_bool(
     "Whether to lower case the input text. Should be True for uncased "
     "models and False for cased models.")
 
-flags.DEFINE_string("export_path", None, "Path to the output TF-Hub module.")
+flags.DEFINE_string("export_path", None, "Path to the output module.")
 
 FLAGS = flags.FLAGS
 

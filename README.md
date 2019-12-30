@@ -1,7 +1,14 @@
 ALBERT
 ======
 
-***************New October 31, 2019 ***************
+***************New December 30, 2019 ***************
+
+Chinese models are released.
+
+- [Base](https://storage.googleapis.com/albert_models/albert_base_zh.tar.gz)
+- [Large](https://storage.googleapis.com/albert_models/albert_large_zh.tar.gz)
+- [Xlarge](https://storage.googleapis.com/albert_models/albert_xlarge_zh.tar.gz)
+- [Xxlarge](https://storage.googleapis.com/albert_models/albert_xxlarge_zh.tar.gz)
 
 Version 2 of ALBERT models is released.
 
