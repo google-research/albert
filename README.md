@@ -3,7 +3,7 @@ ALBERT
 
 ***************New December 30, 2019 ***************
 
-Chinese models are released.
+Chinese models are released. We would like to thank [CLUE team ](https://github.com/CLUEbenchmark/CLUE) for providing the training data.
 
 - [Base](https://storage.googleapis.com/albert_models/albert_base_zh.tar.gz)
 - [Large](https://storage.googleapis.com/albert_models/albert_large_zh.tar.gz)
