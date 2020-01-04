@@ -149,7 +149,6 @@ ALBERT on individual GLUE benchmark tasks, such as MNLI:
 ```
 pip install -r albert/requirements.txt
 python -m albert.run_classifier \
-  --vocab_file=... \
   --data_dir=... \
   --output_dir=... \
   --init_checkpoint=... \
@@ -196,7 +195,6 @@ To fine-tune and evaluate a pretrained model on SQuAD v1, use the
 pip install -r albert/requirements.txt
 python -m albert.run_squad_v1 \
   --albert_config_file=... \
-  --vocab_file=... \
   --output_dir=... \
   --train_file=... \
   --predict_file=... \
@@ -227,7 +225,6 @@ For SQuAD v2, use the `run_squad_v2.py` script:
 pip install -r albert/requirements.txt
 python -m albert.run_squad_v2 \
   --albert_config_file=... \
-  --vocab_file=... \
   --output_dir=... \
   --train_file=... \
   --predict_file=... \
@@ -250,4 +247,28 @@ python -m albert.run_squad_v2 \
   --save_checkpoints_steps=5000 \
   --n_best_size=20 \
   --max_answer_length=30
+```
+
+For RACE, use the `run_race.py` script:
+
+```
+pip install -r albert/requirements.txt
+python -m albert.run_race \
+  --albert_config_file=... \
+  --output_dir=... \
+  --train_file=... \
+  --eval_file=... \
+  --data_dir=...\
+  --init_checkpoint=... \
+  --spm_model_file=... \
+  --max_seq_length=512 \
+  --max_qa_length=128 \
+  --do_train \
+  --do_eval \
+  --train_batch_size=32 \
+  --eval_batch_size=8 \
+  --learning_rate=1e-5 \
+  --train_step=12000 \
+  --warmup_step=1000 \
+  --save_checkpoints_steps=100
 ```

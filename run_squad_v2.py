@@ -495,7 +495,7 @@ def main(_):
 
 
 if __name__ == "__main__":
-  flags.mark_flag_as_required("vocab_file")
+  flags.mark_flag_as_required("spm_model_file")
   flags.mark_flag_as_required("albert_config_file")
   flags.mark_flag_as_required("output_dir")
   tf.app.run()
