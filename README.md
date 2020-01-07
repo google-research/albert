@@ -174,6 +174,9 @@ checkpoints by setting e.g.
 `--albert_hub_module_handle==https://tfhub.dev/google/albert_base/1` instead
 of `--init_checkpoint`.
 
+You can find the spm_model_file in the tar files or under the assets folder of
+the tf-hub module. The name of the model file is "30k-clean.model".
+
 After evaluation, the script should report some output like this:
 
 ```
