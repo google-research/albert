@@ -1,6 +1,11 @@
 ALBERT
 ======
 
+***************New January 7, 2019 ***************
+
+V2 TF-Hub models should be working now.
+See updated TF-Hub links below.
+
 ***************New December 30, 2019 ***************
 
 Chinese models are released. We would like to thank [CLUE team ](https://github.com/CLUEbenchmark/CLUE) for providing the training data.
