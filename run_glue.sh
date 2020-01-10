@@ -38,7 +38,8 @@ function run_task() {
       ${COMMON_ARGS} \
       --nodo_train \
       --do_eval \
-      --do_predict
+      --do_predict \
+      --albert_hub_module_handle="${ALBERT_HUB_MODULE_HANDLE}"
 }
 
 run_task SST-2 1256 1e-5 20935 100 32
