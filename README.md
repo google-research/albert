@@ -1,7 +1,7 @@
 ALBERT
 ======
 
-***************New January 7, 2019 ***************
+***************New January 7, 2020 ***************
 
 v2 TF-Hub models should be working now with TF 1.15, as we removed the
 native Einsum op from the graph. See updated TF-Hub links below.
