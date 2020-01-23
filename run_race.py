@@ -21,6 +21,7 @@ from __future__ import print_function
 import os
 import time
 import classifier_utils
+import fine_tuning_utils
 import modeling
 import race_utils
 import tokenization
@@ -72,6 +73,10 @@ flags.DEFINE_string(
 flags.DEFINE_string(
     "init_checkpoint", None,
     "Initial checkpoint (usually from a pre-trained ALBERT model).")
+
+flags.DEFINE_string(
+    "albert_hub_module_handle", None,
+    "If set, the ALBERT hub module to use.")
 
 flags.DEFINE_bool(
     "do_lower_case", True,
@@ -198,9 +203,11 @@ def main(_):
 
   label_list = processor.get_labels()
 
-  tokenizer = tokenization.FullTokenizer(
-      vocab_file=FLAGS.vocab_file, do_lower_case=FLAGS.do_lower_case,
-      spm_model_file=FLAGS.spm_model_file)
+  tokenizer = fine_tuning_utils.create_vocab(
+      vocab_file=FLAGS.vocab_file,
+      do_lower_case=FLAGS.do_lower_case,
+      spm_model_file=FLAGS.spm_model_file,
+      hub_module=FLAGS.albert_hub_module_handle)
 
   tpu_cluster_resolver = None
   if FLAGS.use_tpu and FLAGS.tpu_name:
@@ -238,7 +245,8 @@ def main(_):
       use_tpu=FLAGS.use_tpu,
       use_one_hot_embeddings=FLAGS.use_tpu,
       max_seq_length=FLAGS.max_seq_length,
-      dropout_prob=FLAGS.dropout_prob)
+      dropout_prob=FLAGS.dropout_prob,
+      hub_module=FLAGS.albert_hub_module_handle)
 
   # If TPU is not available, this will fall back to normal Estimator on CPU
   # or GPU.

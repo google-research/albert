@@ -21,6 +21,7 @@ from __future__ import print_function
 import os
 import time
 import classifier_utils
+import fine_tuning_utils
 import modeling
 import tokenization
 import tensorflow as tf
@@ -192,14 +193,11 @@ def main(_):
 
   label_list = processor.get_labels()
 
-  if FLAGS.albert_hub_module_handle:
-    tokenizer = tokenization.FullTokenizer.from_hub_module(
-        hub_module=FLAGS.albert_hub_module_handle,
-        spm_model_file=FLAGS.spm_model_file)
-  else:
-    tokenizer = tokenization.FullTokenizer.from_scratch(
-        vocab_file=FLAGS.vocab_file, do_lower_case=FLAGS.do_lower_case,
-        spm_model_file=FLAGS.spm_model_file)
+  tokenizer = fine_tuning_utils.create_vocab(
+      vocab_file=FLAGS.vocab_file,
+      do_lower_case=FLAGS.do_lower_case,
+      spm_model_file=FLAGS.spm_model_file,
+      hub_module=FLAGS.albert_hub_module_handle)
 
   tpu_cluster_resolver = None
   if FLAGS.use_tpu and FLAGS.tpu_name:
@@ -372,6 +370,8 @@ def main(_):
         if filename.endswith(".index"):
           ckpt_name = filename[:-6]
           cur_filename = os.path.join(FLAGS.output_dir, ckpt_name)
+          if cur_filename.split("-")[-1] == "best":
+            continue
           gstep = int(cur_filename.split("-")[-1])
           if gstep not in steps_and_files:
             tf.logging.info("Add {} to eval list.".format(cur_filename))

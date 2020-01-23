@@ -23,6 +23,7 @@ import collections
 import json
 import os
 import classifier_utils
+import fine_tuning_utils
 import modeling
 import optimization
 import tokenization
@@ -281,27 +282,24 @@ def file_based_convert_examples_to_features(
 
 def create_model(albert_config, is_training, input_ids, input_mask, segment_ids,
                  labels, num_labels, use_one_hot_embeddings, max_seq_length,
-                 dropout_prob):
+                 dropout_prob, hub_module):
   """Creates a classification model."""
   bsz_per_core = tf.shape(input_ids)[0]
 
-  model = modeling.AlbertModel(
-      config=albert_config,
-      is_training=is_training,
-      input_ids=tf.reshape(input_ids, [bsz_per_core * num_labels,
-                                       max_seq_length]),
-      input_mask=tf.reshape(input_mask, [bsz_per_core * num_labels,
-                                         max_seq_length]),
-      token_type_ids=tf.reshape(segment_ids, [bsz_per_core * num_labels,
-                                              max_seq_length]),
-      use_one_hot_embeddings=use_one_hot_embeddings)
+  input_ids = tf.reshape(input_ids, [bsz_per_core * num_labels, max_seq_length])
+  input_mask = tf.reshape(input_mask,
+                          [bsz_per_core * num_labels, max_seq_length])
+  token_type_ids = tf.reshape(segment_ids,
+                              [bsz_per_core * num_labels, max_seq_length])
 
-  # In the demo, we are doing a simple classification task on the entire
-  # segment.
-  #
-  # If you want to use the token-level output, use model.get_sequence_output()
-  # instead.
-  output_layer = model.get_pooled_output()
+  (output_layer, _) = fine_tuning_utils.create_albert(
+      albert_config=albert_config,
+      is_training=is_training,
+      input_ids=input_ids,
+      input_mask=input_mask,
+      segment_ids=token_type_ids,
+      use_one_hot_embeddings=use_one_hot_embeddings,
+      hub_module=hub_module)
 
   hidden_size = output_layer.shape[-1].value
 
@@ -337,7 +335,8 @@ def create_model(albert_config, is_training, input_ids, input_mask, segment_ids,
 
 def model_fn_builder(albert_config, num_labels, init_checkpoint, learning_rate,
                      num_train_steps, num_warmup_steps, use_tpu,
-                     use_one_hot_embeddings, max_seq_length, dropout_prob):
+                     use_one_hot_embeddings, max_seq_length, dropout_prob,
+                     hub_module):
   """Returns `model_fn` closure for TPUEstimator."""
 
   def model_fn(features, labels, mode, params):  # pylint: disable=unused-argument
@@ -362,7 +361,8 @@ def model_fn_builder(albert_config, num_labels, init_checkpoint, learning_rate,
     (total_loss, per_example_loss, probabilities, logits, predictions) = \
         create_model(albert_config, is_training, input_ids, input_mask,
                      segment_ids, label_ids, num_labels,
-                     use_one_hot_embeddings, max_seq_length, dropout_prob)
+                     use_one_hot_embeddings, max_seq_length, dropout_prob,
+                     hub_module)
 
     tvars = tf.trainable_variables()
     initialized_variable_names = {}

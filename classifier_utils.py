@@ -21,11 +21,11 @@ from __future__ import print_function
 import collections
 import csv
 import os
+import fine_tuning_utils
 import modeling
 import optimization
 import tokenization
 import tensorflow.compat.v1 as tf
-import tensorflow_hub as hub
 from tensorflow.contrib import data as contrib_data
 from tensorflow.contrib import metrics as contrib_metrics
 from tensorflow.contrib import tpu as contrib_tpu
@@ -766,53 +766,18 @@ def _truncate_seq_pair(tokens_a, tokens_b, max_length):
       tokens_b.pop()
 
 
-def _create_model_from_hub(hub_module, is_training, input_ids, input_mask,
-                           segment_ids):
-  """Creates an ALBERT model from TF-Hub."""
-  tags = set()
-  if is_training:
-    tags.add("train")
-  albert_module = hub.Module(hub_module, tags=tags, trainable=True)
-  albert_inputs = dict(
-      input_ids=input_ids,
-      input_mask=input_mask,
-      segment_ids=segment_ids)
-  albert_outputs = albert_module(
-      inputs=albert_inputs,
-      signature="tokens",
-      as_dict=True)
-  output_layer = albert_outputs["pooled_output"]
-  return output_layer
-
-
-def _create_model_from_scratch(albert_config, is_training, input_ids,
-                               input_mask, segment_ids, use_one_hot_embeddings):
-  """Creates an ALBERT model from scratch (as opposed to hub)."""
-  model = modeling.AlbertModel(
-      config=albert_config,
-      is_training=is_training,
-      input_ids=input_ids,
-      input_mask=input_mask,
-      token_type_ids=segment_ids,
-      use_one_hot_embeddings=use_one_hot_embeddings)
-  output_layer = model.get_pooled_output()
-  return output_layer
-
-
 def create_model(albert_config, is_training, input_ids, input_mask, segment_ids,
                  labels, num_labels, use_one_hot_embeddings, task_name,
                  hub_module):
   """Creates a classification model."""
-  if hub_module:
-    tf.logging.info("creating model from hub_module: %s", hub_module)
-    output_layer = _create_model_from_hub(hub_module, is_training, input_ids,
-                                          input_mask, segment_ids)
-  else:
-    tf.logging.info("creating model from albert_config")
-    output_layer = _create_model_from_scratch(albert_config, is_training,
-                                              input_ids, input_mask,
-                                              segment_ids,
-                                              use_one_hot_embeddings)
+  (output_layer, _) = fine_tuning_utils.create_albert(
+      albert_config=albert_config,
+      is_training=is_training,
+      input_ids=input_ids,
+      input_mask=input_mask,
+      segment_ids=segment_ids,
+      use_one_hot_embeddings=use_one_hot_embeddings,
+      hub_module=hub_module)
 
   hidden_size = output_layer.shape[-1].value
 
@@ -874,8 +839,8 @@ def model_fn_builder(albert_config, num_labels, init_checkpoint, learning_rate,
 
     (total_loss, per_example_loss, probabilities, logits, predictions) = \
         create_model(albert_config, is_training, input_ids, input_mask,
-                     segment_ids, label_ids, num_labels,
-                     use_one_hot_embeddings, task_name, hub_module)
+                     segment_ids, label_ids, num_labels, use_one_hot_embeddings,
+                     task_name, hub_module)
 
     tvars = tf.trainable_variables()
     initialized_variable_names = {}
