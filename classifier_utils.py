@@ -121,7 +121,7 @@ class DataProcessor(object):
 
   def process_text(self, text):
     if self.use_spm:
-      return tokenization.preprocess_text(text, self.do_lower_case)
+      return tokenization.preprocess_text(text, lower=self.do_lower_case)
     else:
       return tokenization.convert_to_unicode(text)
 
