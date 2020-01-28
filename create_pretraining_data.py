@@ -60,7 +60,7 @@ flags.DEFINE_bool(
     "Whether to do the permutation training.")
 
 flags.DEFINE_bool(
-    "favor_shorter_ngram", False,
+    "favor_shorter_ngram", True,
     "Whether to set higher probabilities for sampling shorter ngrams.")
 
 flags.DEFINE_bool(
@@ -462,12 +462,12 @@ def create_masked_lm_predictions(tokens, masked_lm_prob,
                        max(1, int(round(len(tokens) * masked_lm_prob))))
 
   # Note(mingdachen):
-  # By default, we set the probilities to favor longer ngram sequences.
+  # By default, we set the probilities to favor shorter ngram sequences.
   ngrams = np.arange(1, FLAGS.ngram + 1, dtype=np.int64)
   pvals = 1. / np.arange(1, FLAGS.ngram + 1)
   pvals /= pvals.sum(keepdims=True)
 
-  if FLAGS.favor_shorter_ngram:
+  if not FLAGS.favor_shorter_ngram:
     pvals = pvals[::-1]
 
   ngram_indexes = []
