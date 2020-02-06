@@ -25,11 +25,12 @@ import os
 import random
 import time
 
+import fine_tuning_utils
 import modeling
 import squad_utils
 import tokenization
 import six
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from tensorflow.contrib import cluster_resolver as contrib_cluster_resolver
 from tensorflow.contrib import tpu as contrib_tpu
@@ -84,6 +85,10 @@ flags.DEFINE_string(
 flags.DEFINE_string(
     "init_checkpoint", None,
     "Initial checkpoint (usually from a pre-trained BERT model).")
+
+flags.DEFINE_string(
+    "albert_hub_module_handle", None,
+    "If set, the ALBERT hub module to use.")
 
 flags.DEFINE_bool(
     "do_lower_case", True,
@@ -217,9 +222,11 @@ def main(_):
 
   tf.gfile.MakeDirs(FLAGS.output_dir)
 
-  tokenizer = tokenization.FullTokenizer(
-      vocab_file=FLAGS.vocab_file, do_lower_case=FLAGS.do_lower_case,
-      spm_model_file=FLAGS.spm_model_file)
+  tokenizer = fine_tuning_utils.create_vocab(
+      vocab_file=FLAGS.vocab_file,
+      do_lower_case=FLAGS.do_lower_case,
+      spm_model_file=FLAGS.spm_model_file,
+      hub_module=FLAGS.albert_hub_module_handle)
 
   tpu_cluster_resolver = None
   if FLAGS.use_tpu and FLAGS.tpu_name:
@@ -236,6 +243,7 @@ def main(_):
       cluster=tpu_cluster_resolver,
       master=FLAGS.master,
       model_dir=FLAGS.output_dir,
+      keep_checkpoint_max=0,
       save_checkpoints_steps=FLAGS.save_checkpoints_steps,
       tpu_config=contrib_tpu.TPUConfig(
           iterations_per_loop=iterations_per_loop,
@@ -268,7 +276,8 @@ def main(_):
       max_seq_length=FLAGS.max_seq_length,
       start_n_top=FLAGS.start_n_top,
       end_n_top=FLAGS.end_n_top,
-      dropout_prob=FLAGS.dropout_prob)
+      dropout_prob=FLAGS.dropout_prob,
+      hub_module=FLAGS.albert_hub_module_handle)
 
   # If TPU is not available, this will fall back to normal Estimator on CPU
   # or GPU.
@@ -500,7 +509,7 @@ def main(_):
 
 
 if __name__ == "__main__":
-  flags.mark_flag_as_required("vocab_file")
+  flags.mark_flag_as_required("spm_model_file")
   flags.mark_flag_as_required("albert_config_file")
   flags.mark_flag_as_required("output_dir")
   tf.app.run()

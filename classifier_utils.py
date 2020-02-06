@@ -16,11 +16,12 @@
 
 from __future__ import absolute_import
 from __future__ import division
-
+# from __future__ import google_type_annotations
 from __future__ import print_function
 import collections
 import csv
 import os
+import fine_tuning_utils
 import modeling
 import optimization
 import tokenization
@@ -767,22 +768,17 @@ def _truncate_seq_pair(tokens_a, tokens_b, max_length):
 
 
 def create_model(albert_config, is_training, input_ids, input_mask, segment_ids,
-                 labels, num_labels, use_one_hot_embeddings, task_name):
+                 labels, num_labels, use_one_hot_embeddings, task_name,
+                 hub_module):
   """Creates a classification model."""
-  model = modeling.AlbertModel(
-      config=albert_config,
+  (output_layer, _) = fine_tuning_utils.create_albert(
+      albert_config=albert_config,
       is_training=is_training,
       input_ids=input_ids,
       input_mask=input_mask,
-      token_type_ids=segment_ids,
-      use_one_hot_embeddings=use_one_hot_embeddings)
-
-  # In the demo, we are doing a simple classification task on the entire
-  # segment.
-  #
-  # If you want to use the token-level output, use model.get_sequence_output()
-  # instead.
-  output_layer = model.get_pooled_output()
+      segment_ids=segment_ids,
+      use_one_hot_embeddings=use_one_hot_embeddings,
+      hub_module=hub_module)
 
   hidden_size = output_layer.shape[-1].value
 
@@ -819,7 +815,8 @@ def create_model(albert_config, is_training, input_ids, input_mask, segment_ids,
 
 def model_fn_builder(albert_config, num_labels, init_checkpoint, learning_rate,
                      num_train_steps, num_warmup_steps, use_tpu,
-                     use_one_hot_embeddings, task_name, optimizer="adamw"):
+                     use_one_hot_embeddings, task_name, hub_module=None,
+                     optimizer="adamw"):
   """Returns `model_fn` closure for TPUEstimator."""
 
   def model_fn(features, labels, mode, params):  # pylint: disable=unused-argument
@@ -843,8 +840,8 @@ def model_fn_builder(albert_config, num_labels, init_checkpoint, learning_rate,
 
     (total_loss, per_example_loss, probabilities, logits, predictions) = \
         create_model(albert_config, is_training, input_ids, input_mask,
-                     segment_ids, label_ids, num_labels,
-                     use_one_hot_embeddings, task_name)
+                     segment_ids, label_ids, num_labels, use_one_hot_embeddings,
+                     task_name, hub_module)
 
     tvars = tf.trainable_variables()
     initialized_variable_names = {}
