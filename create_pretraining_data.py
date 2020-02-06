@@ -26,7 +26,7 @@ import numpy as np
 import six
 from six.moves import range
 from six.moves import zip
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 flags = tf.flags
 
