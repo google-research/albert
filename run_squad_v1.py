@@ -75,11 +75,13 @@ flags.DEFINE_string("train_feature_file", None,
 
 flags.DEFINE_string(
     "predict_feature_file", None,
-    "predict feature file.")
+    "Location of predict features. If it doesn't exist, it will be written. "
+    "If it does exist, it will be read.")
 
 flags.DEFINE_string(
     "predict_feature_left_file", None,
-    "predict data kept but not pass to tpu.")
+    "Location of predict features not passed to TPU. If it doesn't exist, it "
+    "will be written. If it does exist, it will be read.")
 
 flags.DEFINE_string(
     "init_checkpoint", None,
@@ -188,6 +190,14 @@ def validate_flags_or_throw(albert_config):
     if not FLAGS.predict_file:
       raise ValueError(
           "If `do_predict` is True, then `predict_file` must be specified.")
+    if not FLAGS.predict_feature_file:
+      raise ValueError(
+          "If `do_predict` is True, then `predict_feature_file` must be "
+          "specified.")
+    if not FLAGS.predict_feature_left_file:
+      raise ValueError(
+          "If `do_predict` is True, then `predict_feature_left_file` must be "
+          "specified.")
 
   if FLAGS.max_seq_length > albert_config.max_position_embeddings:
     raise ValueError(
