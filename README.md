@@ -299,3 +299,17 @@ You can fine-tune the model starting from TF-Hub modules instead of raw
 checkpoints by setting e.g.
 `--albert_hub_module_handle=https://tfhub.dev/google/albert_base/1` instead
 of `--init_checkpoint`.
+
+
+Command for generating the sentence piece vocabulary:
+
+```
+spm_train \
+--input all.txt --model_prefix=30k-clean --vocab_size=30000 --logtostderr
+--pad_id=0 --unk_id=1 --eos_id=-1 --bos_id=-1
+--control_symbols=[CLS],[SEP],[MASK]
+--user_defined_symbols=(,),\”,-,.,–,£,€
+--shuffle_input_sentence=true --input_sentence_size=10000000
+--character_coverage=0.99995 --model_type=unigram
+
+```
