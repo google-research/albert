@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""BERT finetuning on classification tasks."""
+"""ALBERT finetuning runner with sentence piece tokenization."""
 
 from __future__ import absolute_import
 from __future__ import division
@@ -23,6 +23,7 @@ import time
 import classifier_utils
 import fine_tuning_utils
 import modeling
+import race_utils
 import tokenization
 import tensorflow.compat.v1 as tf
 from tensorflow.contrib import cluster_resolver as contrib_cluster_resolver
@@ -43,11 +44,22 @@ flags.DEFINE_string(
     "The config json file corresponding to the pre-trained ALBERT model. "
     "This specifies the model architecture.")
 
-flags.DEFINE_string("task_name", None, "The name of the task to train.")
+flags.DEFINE_string("task_name", "race", "The name of the task to train.")
 
-flags.DEFINE_string(
-    "vocab_file", None,
-    "The vocabulary file that the ALBERT model was trained on.")
+flags.DEFINE_string("vocab_file", None,
+                    "The vocabulary file that the ALBERT model was trained on.")
+
+flags.DEFINE_string("train_file", None,
+                    "path to preprocessed tfrecord file. "
+                    "The file will be generated if not exst.")
+
+flags.DEFINE_string("eval_file", None,
+                    "path to preprocessed tfrecord file. "
+                    "The file will be generated if not exst.")
+
+flags.DEFINE_string("predict_file", None,
+                    "path to preprocessed tfrecord file. "
+                    "The file will be generated if not exst.")
 
 flags.DEFINE_string("spm_model_file", None,
                     "The model file for sentence piece tokenization.")
@@ -56,15 +68,11 @@ flags.DEFINE_string(
     "output_dir", None,
     "The output directory where the model checkpoints will be written.")
 
-flags.DEFINE_string("cached_dir", None,
-                    "Path to cached training and dev tfrecord file. "
-                    "The file will be generated if not exist.")
-
 ## Other parameters
 
 flags.DEFINE_string(
     "init_checkpoint", None,
-    "Initial checkpoint (usually from a pre-trained BERT model).")
+    "Initial checkpoint (usually from a pre-trained ALBERT model).")
 
 flags.DEFINE_string(
     "albert_hub_module_handle", None,
@@ -79,15 +87,36 @@ flags.DEFINE_bool(
     "do_uncased", True,
     "Whether to set for uncased models and False for languages with non-Latin alphabets models")
 
+flags.DEFINE_float("dropout_prob", 0.1, "dropout probability.")
+
 flags.DEFINE_integer(
     "max_seq_length", 512,
     "The maximum total input sequence length after WordPiece tokenization. "
     "Sequences longer than this will be truncated, and sequences shorter "
     "than this will be padded.")
 
-flags.DEFINE_bool("do_train", False, "Whether to run training.")
+flags.DEFINE_integer(
+    "max_qa_length", 128,
+    "The maximum total input sequence length after WordPiece tokenization. "
+    "Sequences longer than this will be truncated, and sequences shorter "
+    "than this will be padded.")
 
-flags.DEFINE_bool("do_eval", False, "Whether to run eval on the dev set.")
+flags.DEFINE_integer(
+    "num_keep_checkpoint", 5,
+    "maximum number of keep checkpoints")
+
+
+flags.DEFINE_bool(
+    "high_only", False,
+    "Whether to only run the model on the high school set.")
+
+flags.DEFINE_bool(
+    "middle_only", False,
+    "Whether to only run the model on the middle school set.")
+
+flags.DEFINE_bool("do_train", True, "Whether to run training.")
+
+flags.DEFINE_bool("do_eval", True, "Whether to run eval on the dev set.")
 
 flags.DEFINE_bool(
     "do_predict", False,
@@ -99,27 +128,22 @@ flags.DEFINE_integer("eval_batch_size", 8, "Total batch size for eval.")
 
 flags.DEFINE_integer("predict_batch_size", 8, "Total batch size for predict.")
 
-flags.DEFINE_float("learning_rate", 5e-5, "The initial learning rate for Adam.")
+flags.DEFINE_float("learning_rate", 1e-5, "The initial learning rate for Adam.")
 
-flags.DEFINE_integer("train_step", 1000,
-                     "Total number of training steps to perform.")
+flags.DEFINE_integer("train_step", 12000,
+                     "Total number of training epochs to perform.")
 
 flags.DEFINE_integer(
-    "warmup_step", 0,
+    "warmup_step", 1000,
     "number of steps to perform linear learning rate warmup for.")
 
-flags.DEFINE_integer("save_checkpoints_steps", 1000,
+flags.DEFINE_integer("save_checkpoints_steps", 100,
                      "How often to save the model checkpoint.")
-
-flags.DEFINE_integer("keep_checkpoint_max", 5,
-                     "How many checkpoints to keep.")
 
 flags.DEFINE_integer("iterations_per_loop", 1000,
                      "How many steps to make in each estimator call.")
 
 flags.DEFINE_bool("use_tpu", False, "Whether to use TPU or GPU/CPU.")
-
-flags.DEFINE_string("optimizer", "adamw", "Optimizer to use")
 
 tf.flags.DEFINE_string(
     "tpu_name", None,
@@ -150,16 +174,7 @@ def main(_):
   tf.logging.set_verbosity(tf.logging.INFO)
 
   processors = {
-      "cola": classifier_utils.ColaProcessor,
-      "mnli": classifier_utils.MnliProcessor,
-      "mismnli": classifier_utils.MisMnliProcessor,
-      "mrpc": classifier_utils.MrpcProcessor,
-      "rte": classifier_utils.RteProcessor,
-      "sst-2": classifier_utils.Sst2Processor,
-      "sts-b": classifier_utils.StsbProcessor,
-      "qqp": classifier_utils.QqpProcessor,
-      "qnli": classifier_utils.QnliProcessor,
-      "wnli": classifier_utils.WnliProcessor,
+      "race": race_utils.RaceProcessor
   }
 
   tokenization.validate_case_matches_checkpoint(FLAGS.do_lower_case,
@@ -169,20 +184,13 @@ def main(_):
     raise ValueError(
         "At least one of `do_train`, `do_eval` or `do_predict' must be True.")
 
-  if not FLAGS.albert_config_file and not FLAGS.albert_hub_module_handle:
-    raise ValueError("At least one of `--albert_config_file` and "
-                     "`--albert_hub_module_handle` must be set")
+  albert_config = modeling.AlbertConfig.from_json_file(FLAGS.albert_config_file)
 
-  if FLAGS.albert_config_file:
-    albert_config = modeling.AlbertConfig.from_json_file(
-        FLAGS.albert_config_file)
-    if FLAGS.max_seq_length > albert_config.max_position_embeddings:
-      raise ValueError(
-          "Cannot use sequence length %d because the ALBERT model "
-          "was only trained up to sequence length %d" %
-          (FLAGS.max_seq_length, albert_config.max_position_embeddings))
-  else:
-    albert_config = None  # Get the config from TF-Hub.
+  if FLAGS.max_seq_length > albert_config.max_position_embeddings:
+    raise ValueError(
+        "Cannot use sequence length %d because the ALBERT model "
+        "was only trained up to sequence length %d" %
+        (FLAGS.max_seq_length, albert_config.max_position_embeddings))
 
   tf.gfile.MakeDirs(FLAGS.output_dir)
 
@@ -194,6 +202,8 @@ def main(_):
   processor = processors[task_name](
       use_spm=True if FLAGS.spm_model_file else False,
       do_lower_case=FLAGS.do_lower_case,
+      high_only=FLAGS.high_only,
+      middle_only=FLAGS.middle_only,
       do_uncased=FLAGS.do_uncased)
 
   label_list = processor.get_labels()
@@ -229,7 +239,8 @@ def main(_):
   train_examples = None
   if FLAGS.do_train:
     train_examples = processor.get_train_examples(FLAGS.data_dir)
-  model_fn = classifier_utils.model_fn_builder(
+
+  model_fn = race_utils.model_fn_builder(
       albert_config=albert_config,
       num_labels=len(label_list),
       init_checkpoint=FLAGS.init_checkpoint,
@@ -238,9 +249,9 @@ def main(_):
       num_warmup_steps=FLAGS.warmup_step,
       use_tpu=FLAGS.use_tpu,
       use_one_hot_embeddings=FLAGS.use_tpu,
-      task_name=task_name,
-      hub_module=FLAGS.albert_hub_module_handle,
-      optimizer=FLAGS.optimizer)
+      max_seq_length=FLAGS.max_seq_length,
+      dropout_prob=FLAGS.dropout_prob,
+      hub_module=FLAGS.albert_hub_module_handle)
 
   # If TPU is not available, this will fall back to normal Estimator on CPU
   # or GPU.
@@ -253,26 +264,23 @@ def main(_):
       predict_batch_size=FLAGS.predict_batch_size)
 
   if FLAGS.do_train:
-    cached_dir = FLAGS.cached_dir
-    if not cached_dir:
-      cached_dir = FLAGS.output_dir
-    train_file = os.path.join(cached_dir, task_name + "_train.tf_record")
-    if not tf.gfile.Exists(train_file):
-      classifier_utils.file_based_convert_examples_to_features(
+    if not tf.gfile.Exists(FLAGS.train_file):
+      race_utils.file_based_convert_examples_to_features(
           train_examples, label_list, FLAGS.max_seq_length, tokenizer,
-          train_file, task_name)
+          FLAGS.train_file, FLAGS.max_qa_length)
     tf.logging.info("***** Running training *****")
     tf.logging.info("  Num examples = %d", len(train_examples))
     tf.logging.info("  Batch size = %d", FLAGS.train_batch_size)
     tf.logging.info("  Num steps = %d", FLAGS.train_step)
     train_input_fn = classifier_utils.file_based_input_fn_builder(
-        input_file=train_file,
+        input_file=FLAGS.train_file,
         seq_length=FLAGS.max_seq_length,
         is_training=True,
         drop_remainder=True,
         task_name=task_name,
         use_tpu=FLAGS.use_tpu,
-        bsz=FLAGS.train_batch_size)
+        bsz=FLAGS.train_batch_size,
+        multiple=len(label_list))
     estimator.train(input_fn=train_input_fn, max_steps=FLAGS.train_step)
 
   if FLAGS.do_eval:
@@ -287,14 +295,10 @@ def main(_):
       while len(eval_examples) % FLAGS.eval_batch_size != 0:
         eval_examples.append(classifier_utils.PaddingInputExample())
 
-    cached_dir = FLAGS.cached_dir
-    if not cached_dir:
-      cached_dir = FLAGS.output_dir
-    eval_file = os.path.join(cached_dir, task_name + "_eval.tf_record")
-    if not tf.gfile.Exists(eval_file):
-      classifier_utils.file_based_convert_examples_to_features(
+    if not tf.gfile.Exists(FLAGS.eval_file):
+      race_utils.file_based_convert_examples_to_features(
           eval_examples, label_list, FLAGS.max_seq_length, tokenizer,
-          eval_file, task_name)
+          FLAGS.eval_file, FLAGS.max_qa_length)
 
     tf.logging.info("***** Running evaluation *****")
     tf.logging.info("  Num examples = %d (%d actual, %d padding)",
@@ -312,39 +316,14 @@ def main(_):
 
     eval_drop_remainder = True if FLAGS.use_tpu else False
     eval_input_fn = classifier_utils.file_based_input_fn_builder(
-        input_file=eval_file,
+        input_file=FLAGS.eval_file,
         seq_length=FLAGS.max_seq_length,
         is_training=False,
         drop_remainder=eval_drop_remainder,
         task_name=task_name,
         use_tpu=FLAGS.use_tpu,
-        bsz=FLAGS.eval_batch_size)
-
-    best_trial_info_file = os.path.join(FLAGS.output_dir, "best_trial.txt")
-
-    def _best_trial_info():
-      """Returns information about which checkpoints have been evaled so far."""
-      if tf.gfile.Exists(best_trial_info_file):
-        with tf.gfile.GFile(best_trial_info_file, "r") as best_info:
-          global_step, best_metric_global_step, metric_value = (
-              best_info.read().split(":"))
-          global_step = int(global_step)
-          best_metric_global_step = int(best_metric_global_step)
-          metric_value = float(metric_value)
-      else:
-        metric_value = -1
-        best_metric_global_step = -1
-        global_step = -1
-      tf.logging.info(
-          "Best trial info: Step: %s, Best Value Step: %s, "
-          "Best Value: %s", global_step, best_metric_global_step, metric_value)
-      return global_step, best_metric_global_step, metric_value
-
-    def _remove_checkpoint(checkpoint_path):
-      for ext in ["meta", "data-00000-of-00001", "index"]:
-        src_ckpt = checkpoint_path + ".{}".format(ext)
-        tf.logging.info("removing {}".format(src_ckpt))
-        tf.gfile.Remove(src_ckpt)
+        bsz=FLAGS.eval_batch_size,
+        multiple=len(label_list))
 
     def _find_valid_cands(curr_step):
       filenames = tf.gfile.ListDirectory(FLAGS.output_dir)
@@ -353,20 +332,24 @@ def main(_):
         if filename.endswith(".index"):
           ckpt_name = filename[:-6]
           idx = ckpt_name.split("-")[-1]
-          if int(idx) > curr_step:
+          if idx != "best" and int(idx) > curr_step:
             candidates.append(filename)
       return candidates
 
     output_eval_file = os.path.join(FLAGS.output_dir, "eval_results.txt")
-
-    if task_name == "sts-b":
-      key_name = "pearson"
-    elif task_name == "cola":
-      key_name = "matthew_corr"
+    checkpoint_path = os.path.join(FLAGS.output_dir, "model.ckpt-best")
+    key_name = "eval_accuracy"
+    if tf.gfile.Exists(checkpoint_path + ".index"):
+      result = estimator.evaluate(
+          input_fn=eval_input_fn,
+          steps=eval_steps,
+          checkpoint_path=checkpoint_path)
+      best_perf = result[key_name]
+      global_step = result["global_step"]
     else:
-      key_name = "eval_accuracy"
-
-    global_step, best_perf_global_step, best_perf = _best_trial_info()
+      global_step = -1
+      best_perf = -1
+      checkpoint_path = None
     writer = tf.gfile.GFile(output_eval_file, "w")
     while global_step < FLAGS.train_step:
       steps_and_files = {}
@@ -382,17 +365,20 @@ def main(_):
             tf.logging.info("Add {} to eval list.".format(cur_filename))
             steps_and_files[gstep] = cur_filename
       tf.logging.info("found {} files.".format(len(steps_and_files)))
+      # steps_and_files = sorted(steps_and_files, key=lambda x: x[0])
       if not steps_and_files:
         tf.logging.info("found 0 file, global step: {}. Sleeping."
                         .format(global_step))
-        time.sleep(60)
+        time.sleep(1)
       else:
-        for checkpoint in sorted(steps_and_files.items()):
-          step, checkpoint_path = checkpoint
+        for ele in sorted(steps_and_files.items()):
+          step, checkpoint_path = ele
           if global_step >= step:
-            if (best_perf_global_step != step and
-                len(_find_valid_cands(step)) > 1):
-              _remove_checkpoint(checkpoint_path)
+            if len(_find_valid_cands(step)) > 1:
+              for ext in ["meta", "data-00000-of-00001", "index"]:
+                src_ckpt = checkpoint_path + ".{}".format(ext)
+                tf.logging.info("removing {}".format(src_ckpt))
+                tf.gfile.Remove(src_ckpt)
             continue
           result = estimator.evaluate(
               input_fn=eval_input_fn,
@@ -406,25 +392,20 @@ def main(_):
           writer.write("best = {}\n".format(best_perf))
           if result[key_name] > best_perf:
             best_perf = result[key_name]
-            best_perf_global_step = global_step
-          elif len(_find_valid_cands(global_step)) > 1:
-            _remove_checkpoint(checkpoint_path)
+            for ext in ["meta", "data-00000-of-00001", "index"]:
+              src_ckpt = checkpoint_path + ".{}".format(ext)
+              tgt_ckpt = checkpoint_path.rsplit("-", 1)[0] + "-best.{}".format(ext)
+              tf.logging.info("saving {} to {}".format(src_ckpt, tgt_ckpt))
+              tf.gfile.Copy(src_ckpt, tgt_ckpt, overwrite=True)
+              writer.write("saved {} to {}\n".format(src_ckpt, tgt_ckpt))
+
+          if len(_find_valid_cands(global_step)) > 1:
+            for ext in ["meta", "data-00000-of-00001", "index"]:
+              src_ckpt = checkpoint_path + ".{}".format(ext)
+              tf.logging.info("removing {}".format(src_ckpt))
+              tf.gfile.Remove(src_ckpt)
           writer.write("=" * 50 + "\n")
-          writer.flush()
-          with tf.gfile.GFile(best_trial_info_file, "w") as best_info:
-            best_info.write("{}:{}:{}".format(
-                global_step, best_perf_global_step, best_perf))
     writer.close()
-
-    for ext in ["meta", "data-00000-of-00001", "index"]:
-      src_ckpt = "model.ckpt-{}.{}".format(best_perf_global_step, ext)
-      tgt_ckpt = "model.ckpt-best.{}".format(ext)
-      tf.logging.info("saving {} to {}".format(src_ckpt, tgt_ckpt))
-      tf.io.gfile.rename(
-          os.path.join(FLAGS.output_dir, src_ckpt),
-          os.path.join(FLAGS.output_dir, tgt_ckpt),
-          overwrite=True)
-
   if FLAGS.do_predict:
     predict_examples = processor.get_test_examples(FLAGS.data_dir)
     num_actual_predict_examples = len(predict_examples)
@@ -435,12 +416,14 @@ def main(_):
       # later on.
       while len(predict_examples) % FLAGS.predict_batch_size != 0:
         predict_examples.append(classifier_utils.PaddingInputExample())
+      assert len(predict_examples) % FLAGS.predict_batch_size == 0
+      predict_steps = int(len(predict_examples) // FLAGS.predict_batch_size)
 
     predict_file = os.path.join(FLAGS.output_dir, "predict.tf_record")
-    classifier_utils.file_based_convert_examples_to_features(
+    race_utils.file_based_convert_examples_to_features(
         predict_examples, label_list,
         FLAGS.max_seq_length, tokenizer,
-        predict_file, task_name)
+        predict_file, FLAGS.max_qa_length)
 
     tf.logging.info("***** Running prediction*****")
     tf.logging.info("  Num examples = %d (%d actual, %d padding)",
@@ -456,42 +439,29 @@ def main(_):
         drop_remainder=predict_drop_remainder,
         task_name=task_name,
         use_tpu=FLAGS.use_tpu,
-        bsz=FLAGS.predict_batch_size)
+        bsz=FLAGS.predict_batch_size,
+        multiple=len(label_list))
 
     checkpoint_path = os.path.join(FLAGS.output_dir, "model.ckpt-best")
-    result = estimator.predict(
+    result = estimator.evaluate(
         input_fn=predict_input_fn,
+        steps=predict_steps,
         checkpoint_path=checkpoint_path)
 
-    output_predict_file = os.path.join(FLAGS.output_dir, "test_results.tsv")
-    output_submit_file = os.path.join(FLAGS.output_dir, "submit_results.tsv")
-    with tf.gfile.GFile(output_predict_file, "w") as pred_writer,\
-        tf.gfile.GFile(output_submit_file, "w") as sub_writer:
-      sub_writer.write("index" + "\t" + "prediction\n")
-      num_written_lines = 0
+    output_predict_file = os.path.join(FLAGS.output_dir, "predict_results.txt")
+    with tf.gfile.GFile(output_predict_file, "w") as pred_writer:
+      # num_written_lines = 0
       tf.logging.info("***** Predict results *****")
-      for (i, (example, prediction)) in\
-          enumerate(zip(predict_examples, result)):
-        probabilities = prediction["probabilities"]
-        if i >= num_actual_predict_examples:
-          break
-        output_line = "\t".join(
-            str(class_probability)
-            for class_probability in probabilities) + "\n"
-        pred_writer.write(output_line)
-
-        if task_name != "sts-b":
-          actual_label = label_list[int(prediction["predictions"])]
-        else:
-          actual_label = str(prediction["predictions"])
-        sub_writer.write(example.guid + "\t" + actual_label + "\n")
-        num_written_lines += 1
-    assert num_written_lines == num_actual_predict_examples
+      pred_writer.write("***** Predict results *****\n")
+      for key in sorted(result.keys()):
+        tf.logging.info("  %s = %s", key, str(result[key]))
+        pred_writer.write("%s = %s\n" % (key, str(result[key])))
+      pred_writer.write("best = {}\n".format(best_perf))
 
 
 if __name__ == "__main__":
   flags.mark_flag_as_required("data_dir")
-  flags.mark_flag_as_required("task_name")
   flags.mark_flag_as_required("spm_model_file")
+  flags.mark_flag_as_required("albert_config_file")
   flags.mark_flag_as_required("output_dir")
   tf.app.run()

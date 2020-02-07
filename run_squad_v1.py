@@ -24,11 +24,12 @@ import json
 import os
 import random
 import time
+import fine_tuning_utils
 import modeling
 import squad_utils
 import tokenization
 import six
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from tensorflow.contrib import cluster_resolver as contrib_cluster_resolver
 from tensorflow.contrib import tpu as contrib_tpu
@@ -74,15 +75,21 @@ flags.DEFINE_string("train_feature_file", None,
 
 flags.DEFINE_string(
     "predict_feature_file", None,
-    "predict feature file.")
+    "Location of predict features. If it doesn't exist, it will be written. "
+    "If it does exist, it will be read.")
 
 flags.DEFINE_string(
     "predict_feature_left_file", None,
-    "predict data kept but not pass to tpu.")
+    "Location of predict features not passed to TPU. If it doesn't exist, it "
+    "will be written. If it does exist, it will be read.")
 
 flags.DEFINE_string(
     "init_checkpoint", None,
     "Initial checkpoint (usually from a pre-trained BERT model).")
+
+flags.DEFINE_string(
+    "albert_hub_module_handle", None,
+    "If set, the ALBERT hub module to use.")
 
 flags.DEFINE_bool(
     "do_lower_case", True,
@@ -187,6 +194,14 @@ def validate_flags_or_throw(albert_config):
     if not FLAGS.predict_file:
       raise ValueError(
           "If `do_predict` is True, then `predict_file` must be specified.")
+    if not FLAGS.predict_feature_file:
+      raise ValueError(
+          "If `do_predict` is True, then `predict_feature_file` must be "
+          "specified.")
+    if not FLAGS.predict_feature_left_file:
+      raise ValueError(
+          "If `do_predict` is True, then `predict_feature_left_file` must be "
+          "specified.")
 
   if FLAGS.max_seq_length > albert_config.max_position_embeddings:
     raise ValueError(
@@ -209,9 +224,11 @@ def main(_):
 
   tf.gfile.MakeDirs(FLAGS.output_dir)
 
-  tokenizer = tokenization.FullTokenizer(
-      vocab_file=FLAGS.vocab_file, do_lower_case=FLAGS.do_lower_case,
-      spm_model_file=FLAGS.spm_model_file)
+  tokenizer = fine_tuning_utils.create_vocab(
+      vocab_file=FLAGS.vocab_file,
+      do_lower_case=FLAGS.do_lower_case,
+      spm_model_file=FLAGS.spm_model_file,
+      hub_module=FLAGS.albert_hub_module_handle)
 
   tpu_cluster_resolver = None
   if FLAGS.use_tpu and FLAGS.tpu_name:
@@ -228,6 +245,7 @@ def main(_):
       cluster=tpu_cluster_resolver,
       master=FLAGS.master,
       model_dir=FLAGS.output_dir,
+      keep_checkpoint_max=0,
       save_checkpoints_steps=FLAGS.save_checkpoints_steps,
       tpu_config=contrib_tpu.TPUConfig(
           iterations_per_loop=iterations_per_loop,
@@ -256,7 +274,8 @@ def main(_):
       num_train_steps=num_train_steps,
       num_warmup_steps=num_warmup_steps,
       use_tpu=FLAGS.use_tpu,
-      use_one_hot_embeddings=FLAGS.use_tpu)
+      use_one_hot_embeddings=FLAGS.use_tpu,
+      hub_module=FLAGS.albert_hub_module_handle)
 
   # If TPU is not available, this will fall back to normal Estimator on CPU
   # or GPU.
@@ -477,7 +496,7 @@ def main(_):
 
 
 if __name__ == "__main__":
-  flags.mark_flag_as_required("vocab_file")
+  flags.mark_flag_as_required("spm_model_file")
   flags.mark_flag_as_required("albert_config_file")
   flags.mark_flag_as_required("output_dir")
   tf.app.run()
