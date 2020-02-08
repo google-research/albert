@@ -46,6 +46,9 @@ flags.DEFINE_string(
 flags.DEFINE_string("spm_model_file", None,
                     "The model file for sentence piece tokenization.")
 
+flags.DEFINE_string("input_file_mode", "r",
+                    "The data format of the input file.")
+
 flags.DEFINE_bool(
     "do_lower_case", True,
     "Whether to lower case the input text. Should be True for uncased "
@@ -225,7 +228,7 @@ def create_training_instances(input_files, tokenizer, max_seq_length,
   # (2) Blank lines between documents. Document boundaries are needed so
   # that the "next sentence prediction" task doesn't span between documents.
   for input_file in input_files:
-    with tf.gfile.GFile(input_file, "r") as reader:
+    with tf.gfile.GFile(input_file, FLAGS.input_file_mode) as reader:
       while True:
         line = reader.readline()
         if not FLAGS.spm_model_file:
