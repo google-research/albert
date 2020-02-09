@@ -1,6 +1,12 @@
 ALBERT
 ======
 
+***************New Feburary 8, 2020 ***************
+
+##CALL FOR MULTILINGUAL MODLES
+
+Due to some unexpected events, we cannot relase our multilangal models in time. If you happen to train some ALBERT models in your langage, find that they are useful to you, and would like to share with people that have the same need as yours, please contact us (albert_nlu@google.com) and we will put your models/links on this page. Thanks!
+
 ***************New January 7, 2020 ***************
 
 v2 TF-Hub models should be working now with TF 1.15, as we removed the
