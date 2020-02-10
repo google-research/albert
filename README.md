@@ -300,7 +300,8 @@ checkpoints by setting e.g.
 `--albert_hub_module_handle=https://tfhub.dev/google/albert_base/1` instead
 of `--init_checkpoint`.
 
-
+SentencePiece
+=============
 Command for generating the sentence piece vocabulary:
 
 ```
