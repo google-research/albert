@@ -13,170 +13,121 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # Lint as: python2, python3
-"""Run a small test for ALBERT pretraining."""
+"""Tests for run_pretraining."""
 
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+
 import os
-import time
+import random
+import tempfile
+from absl.testing import flagsaver
 import modeling
 import run_pretraining
-import numpy as np
-from six.moves import range
 import tensorflow.compat.v1 as tf
-from tensorflow.contrib import cluster_resolver as contrib_cluster_resolver
+
+FLAGS = tf.app.flags.FLAGS
 
 
-flags = tf.flags
-
-FLAGS = flags.FLAGS
-
-
-def _add_float32_feature(example, feature, shape, minval, maxval):
-  values = np.random.random_sample(shape)
-  values = (maxval - minval) * values + minval
-  example.features.feature[feature].float_list.value.extend(values)
-
-
-def _add_int64_feature(example, feature, shape, minval, maxval):
-  values = np.random.randint(low=minval, high=maxval+1, size=shape)
-  example.features.feature[feature].int64_list.value.extend(values)
-
-
-def _make_dummy_input_files(num_files, num_per_file, vocab_size):
-  for i in range(num_files):
-    filename = os.path.join(FLAGS.output_dir, "input%d.tfrecord" % i)
-    with tf.io.TFRecordWriter(filename) as writer:
-      for _ in range(num_per_file):
-        example = tf.train.Example()
-        _add_int64_feature(example, "input_ids", [FLAGS.max_seq_length],
-                           minval=0, maxval=vocab_size-1)
-        _add_int64_feature(example, "input_mask", [FLAGS.max_seq_length],
-                           minval=0, maxval=1)
-        _add_int64_feature(example, "segment_ids", [FLAGS.max_seq_length],
-                           minval=0, maxval=0)
-        _add_int64_feature(example, "next_sentence_labels", [1], minval=0,
-                           maxval=1)
-        _add_int64_feature(example, "token_boundary", [FLAGS.max_seq_length],
-                           minval=0, maxval=vocab_size)
-        _add_int64_feature(example, "masked_lm_positions",
-                           [FLAGS.max_predictions_per_seq], minval=0,
-                           maxval=FLAGS.max_seq_length-1)
-        _add_int64_feature(example, "masked_lm_ids",
-                           [FLAGS.max_predictions_per_seq], minval=0,
-                           maxval=vocab_size-1)
-        _add_float32_feature(example, "masked_lm_weights",
-                             [FLAGS.max_predictions_per_seq], minval=0,
-                             maxval=1)
-        record = example.SerializeToString()
-        writer.write(record)
-    yield filename
-
-
-def main(_):
-  tf.logging.set_verbosity(tf.logging.INFO)
-
-  if not FLAGS.do_train and not FLAGS.do_eval:
-    raise ValueError("At least one of `do_train` or `do_eval` must be True.")
-
+def _create_config_file(filename, max_seq_length, vocab_size):
+  """Creates an AlbertConfig and saves it to file."""
   albert_config = modeling.AlbertConfig(
-      100,
-      embedding_size=7,
-      hidden_size=26,
+      vocab_size,
+      embedding_size=5,
+      hidden_size=14,
       num_hidden_layers=3,
       num_hidden_groups=1,
-      num_attention_heads=13,
-      intermediate_size=29,
+      num_attention_heads=2,
+      intermediate_size=19,
       inner_group_num=1,
       down_scale_factor=1,
       hidden_act="gelu",
       hidden_dropout_prob=0,
       attention_probs_dropout_prob=0,
-      max_position_embeddings=512,
+      max_position_embeddings=max_seq_length,
       type_vocab_size=2,
       initializer_range=0.02)
+  with tf.gfile.Open(filename, "w") as outfile:
+    outfile.write(albert_config.to_json_string())
 
-  tf.io.gfile.makedirs(FLAGS.output_dir)
 
-  # Create some dummy input files instead of reading from actual data.
-  input_files = list(_make_dummy_input_files(2, 5, 100))
+def _create_record(max_predictions_per_seq, max_seq_length, vocab_size):
+  """Returns a tf.train.Example containing random data."""
+  example = tf.train.Example()
+  example.features.feature["input_ids"].int64_list.value.extend(
+      [random.randint(0, vocab_size - 1) for _ in range(max_seq_length)])
+  example.features.feature["input_mask"].int64_list.value.extend(
+      [random.randint(0, 1) for _ in range(max_seq_length)])
+  example.features.feature["masked_lm_positions"].int64_list.value.extend([
+      random.randint(0, max_seq_length - 1)
+      for _ in range(max_predictions_per_seq)
+  ])
+  example.features.feature["masked_lm_ids"].int64_list.value.extend([
+      random.randint(0, vocab_size - 1) for _ in range(max_predictions_per_seq)
+  ])
+  example.features.feature["masked_lm_weights"].float_list.value.extend(
+      [1. for _ in range(max_predictions_per_seq)])
+  example.features.feature["segment_ids"].int64_list.value.extend(
+      [0 for _ in range(max_seq_length)])
+  example.features.feature["next_sentence_labels"].int64_list.value.append(
+      random.randint(0, 1))
+  return example
 
-  tf.logging.info("*** Input Files ***")
-  for input_file in input_files:
-    tf.logging.info("  %s" % input_file)
 
-  tpu_cluster_resolver = None
-  if FLAGS.use_tpu and FLAGS.tpu_name:
-    tpu_cluster_resolver = contrib_cluster_resolver.TPUClusterResolver(
-        FLAGS.tpu_name, zone=FLAGS.tpu_zone, project=FLAGS.gcp_project)
+def _create_input_file(filename,
+                       max_predictions_per_seq,
+                       max_seq_length,
+                       vocab_size,
+                       size=1000):
+  """Creates an input TFRecord file of specified size."""
+  with tf.io.TFRecordWriter(filename) as writer:
+    for _ in range(size):
+      ex = _create_record(max_predictions_per_seq, max_seq_length, vocab_size)
+      writer.write(ex.SerializeToString())
 
-  is_per_host = tf.estimator.tpu.InputPipelineConfig.PER_HOST_V2
-  run_config = tf.estimator.tpu.RunConfig(
-      cluster=tpu_cluster_resolver,
-      master=FLAGS.master,
-      model_dir=FLAGS.output_dir,
-      save_checkpoints_steps=FLAGS.save_checkpoints_steps,
-      tpu_config=tf.estimator.tpu.TPUConfig(
-          iterations_per_loop=FLAGS.iterations_per_loop,
-          num_shards=FLAGS.num_tpu_cores,
-          per_host_input_for_training=is_per_host))
 
-  model_fn = run_pretraining.model_fn_builder(
-      albert_config=albert_config,
-      init_checkpoint=FLAGS.init_checkpoint,
-      learning_rate=FLAGS.learning_rate,
-      num_train_steps=FLAGS.num_train_steps,
-      num_warmup_steps=FLAGS.num_warmup_steps,
-      use_tpu=FLAGS.use_tpu,
-      use_one_hot_embeddings=FLAGS.use_tpu,
-      optimizer=FLAGS.optimizer,
-      poly_power=FLAGS.poly_power,
-      start_warmup_step=FLAGS.start_warmup_step)
+class RunPretrainingTest(tf.test.TestCase):
 
-  # If TPU is not available, this will fall back to normal Estimator on CPU
-  # or GPU.
-  estimator = tf.estimator.tpu.TPUEstimator(
-      use_tpu=FLAGS.use_tpu,
-      model_fn=model_fn,
-      config=run_config,
-      train_batch_size=FLAGS.train_batch_size,
-      eval_batch_size=FLAGS.eval_batch_size)
+  def _verify_output_file(self, basename):
+    self.assertTrue(tf.gfile.Exists(os.path.join(FLAGS.output_dir, basename)))
 
-  if FLAGS.do_train:
-    tf.logging.info("***** Running training *****")
-    tf.logging.info("  Batch size = %d", FLAGS.train_batch_size)
-    train_input_fn = run_pretraining.input_fn_builder(
-        input_files=input_files,
-        max_seq_length=FLAGS.max_seq_length,
-        max_predictions_per_seq=FLAGS.max_predictions_per_seq,
-        is_training=True)
-    estimator.train(input_fn=train_input_fn, max_steps=FLAGS.num_train_steps)
+  def _verify_checkpoint_files(self, name):
+    self._verify_output_file(name + ".meta")
+    self._verify_output_file(name + ".index")
+    self._verify_output_file(name + ".data-00000-of-00001")
 
-  if FLAGS.do_eval:
-    tf.logging.info("***** Running evaluation *****")
-    tf.logging.info("  Batch size = %d", FLAGS.eval_batch_size)
-    global_step = -1
-    output_eval_file = os.path.join(FLAGS.output_dir, "eval_results.txt")
-    writer = tf.io.gfile.GFile(output_eval_file, "w")
-    eval_input_fn = run_pretraining.input_fn_builder(
-        input_files=input_files,
-        max_seq_length=FLAGS.max_seq_length,
-        max_predictions_per_seq=FLAGS.max_predictions_per_seq,
-        is_training=False)
-    while global_step < FLAGS.num_train_steps:
-      if estimator.latest_checkpoint() is None:
-        tf.logging.info("No checkpoint found yet. Sleeping.")
-        time.sleep(1)
-      else:
-        result = estimator.evaluate(
-            input_fn=eval_input_fn, steps=FLAGS.max_eval_steps)
-        global_step = result["global_step"]
-        tf.logging.info("***** Eval results *****")
-        for key in sorted(result.keys()):
-          tf.logging.info("  %s = %s", key, str(result[key]))
-          writer.write("%s = %s\n" % (key, str(result[key])))
+  @flagsaver.flagsaver
+  def test_pretraining(self):
+    # Set up required flags.
+    vocab_size = 97
+    FLAGS.max_predictions_per_seq = 7
+    FLAGS.max_seq_length = 13
+    FLAGS.output_dir = tempfile.mkdtemp("output_dir")
+    FLAGS.albert_config_file = os.path.join(
+        tempfile.mkdtemp("config_dir"), "albert_config.json")
+    FLAGS.input_file = os.path.join(
+        tempfile.mkdtemp("input_dir"), "input_data.tfrecord")
+    FLAGS.do_train = True
+    FLAGS.do_eval = True
+    FLAGS.num_train_steps = 1
+    FLAGS.save_checkpoints_steps = 1
+
+    # Construct requisite input files.
+    _create_config_file(FLAGS.albert_config_file, FLAGS.max_seq_length,
+                        vocab_size)
+    _create_input_file(FLAGS.input_file, FLAGS.max_predictions_per_seq,
+                       FLAGS.max_seq_length, vocab_size)
+
+    # Run the pretraining.
+    run_pretraining.main(None)
+
+    # Verify output.
+    self._verify_checkpoint_files("model.ckpt-best")
+    self._verify_checkpoint_files("model.ckpt-1")
+    self._verify_output_file("eval_results.txt")
+    self._verify_output_file("checkpoint")
+
 
 if __name__ == "__main__":
-  flags.mark_flag_as_required("output_dir")
-  tf.app.run()
+  tf.test.main()
