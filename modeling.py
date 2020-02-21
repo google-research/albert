@@ -273,8 +273,8 @@ class AlbertModel(object):
     added.
 
     Returns:
-      float Tensor of shape [batch_size, seq_length, hidden_size] corresponding
-      to the output of the word(piece) embedding layer.
+      float Tensor of shape [batch_size, seq_length, embedding_size]
+      corresponding to the output of the word(piece) embedding layer.
     """
     return self.word_embedding_output
 
@@ -282,8 +282,8 @@ class AlbertModel(object):
     """Gets output of the embedding lookup (i.e., input to the transformer).
 
     Returns:
-      float Tensor of shape [batch_size, seq_length, hidden_size] corresponding
-      to the output of the embedding layer, after summing the word
+      float Tensor of shape [batch_size, seq_length, embedding_size]
+      corresponding to the output of the embedding layer, after summing the word
       embeddings with the positional embeddings and the token type embeddings,
       then performing layer normalization. This is the input to the transformer.
     """
