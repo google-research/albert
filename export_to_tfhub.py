@@ -38,6 +38,11 @@ flags.DEFINE_bool(
     "Whether to lower case the input text. Should be True for uncased "
     "models and False for cased models.")
 
+flags.DEFINE_bool(
+    "use_einsum", True,
+    "Whether to use tf.einsum or tf.reshape+tf.matmul for dense layers. Must "
+    "be set to False for TFLite compatibility.")
+
 flags.DEFINE_string("export_path", None, "Path to the output TF-Hub module.")
 
 FLAGS = flags.FLAGS
@@ -102,7 +107,8 @@ def module_fn(is_training):
       input_ids=input_ids,
       input_mask=input_mask,
       token_type_ids=segment_ids,
-      use_one_hot_embeddings=False)
+      use_one_hot_embeddings=False,
+      use_einsum=FLAGS.use_einsum)
 
   mlm_logits = get_mlm_logits(model, albert_config, mlm_positions)
 

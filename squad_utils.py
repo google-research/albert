@@ -708,7 +708,8 @@ def input_fn_builder(input_file, seq_length, is_training,
 
 
 def create_v1_model(albert_config, is_training, input_ids, input_mask,
-                    segment_ids, use_one_hot_embeddings, hub_module):
+                    segment_ids, use_one_hot_embeddings, use_einsum,
+                    hub_module):
   """Creates a classification model."""
   (_, final_hidden) = fine_tuning_utils.create_albert(
       albert_config=albert_config,
@@ -717,6 +718,7 @@ def create_v1_model(albert_config, is_training, input_ids, input_mask,
       input_mask=input_mask,
       segment_ids=segment_ids,
       use_one_hot_embeddings=use_one_hot_embeddings,
+      use_einsum=use_einsum,
       hub_module=hub_module)
 
   final_hidden_shape = modeling.get_shape_list(final_hidden, expected_rank=3)
@@ -748,7 +750,7 @@ def create_v1_model(albert_config, is_training, input_ids, input_mask,
 
 def v1_model_fn_builder(albert_config, init_checkpoint, learning_rate,
                         num_train_steps, num_warmup_steps, use_tpu,
-                        use_one_hot_embeddings, hub_module):
+                        use_one_hot_embeddings, use_einsum, hub_module):
   """Returns `model_fn` closure for TPUEstimator."""
 
   def model_fn(features, labels, mode, params):  # pylint: disable=unused-argument
@@ -758,7 +760,10 @@ def v1_model_fn_builder(albert_config, init_checkpoint, learning_rate,
     for name in sorted(features.keys()):
       tf.logging.info("  name = %s, shape = %s" % (name, features[name].shape))
 
-    unique_ids = features["unique_ids"]
+    if "unique_ids" in features:
+      unique_ids = features["unique_ids"]
+    else:
+      unique_ids = None
     input_ids = features["input_ids"]
     input_mask = features["input_mask"]
     segment_ids = features["segment_ids"]
@@ -772,7 +777,12 @@ def v1_model_fn_builder(albert_config, init_checkpoint, learning_rate,
         input_mask=input_mask,
         segment_ids=segment_ids,
         use_one_hot_embeddings=use_one_hot_embeddings,
+        use_einsum=use_einsum,
         hub_module=hub_module)
+
+    # Assign names to the logits so that we can refer to them as output tensors.
+    start_logits = tf.identity(start_logits, name="start_logits")
+    end_logits = tf.identity(end_logits, name="end_logits")
 
     tvars = tf.trainable_variables()
 
@@ -829,10 +839,11 @@ def v1_model_fn_builder(albert_config, init_checkpoint, learning_rate,
           scaffold_fn=scaffold_fn)
     elif mode == tf.estimator.ModeKeys.PREDICT:
       predictions = {
-          "unique_ids": unique_ids,
           "start_log_prob": start_logits,
           "end_log_prob": end_logits,
       }
+      if unique_ids is not None:
+        predictions["unique_ids"] = unique_ids
       output_spec = contrib_tpu.TPUEstimatorSpec(
           mode=mode, predictions=predictions, scaffold_fn=scaffold_fn)
     else:
@@ -1428,6 +1439,7 @@ def create_v2_model(albert_config, is_training, input_ids, input_mask,
       input_mask=input_mask,
       segment_ids=segment_ids,
       use_one_hot_embeddings=use_one_hot_embeddings,
+      use_einsum=True,
       hub_module=hub_module)
 
   bsz = tf.shape(output)[0]

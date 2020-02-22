@@ -44,7 +44,8 @@ def _create_model_from_hub(hub_module, is_training, input_ids, input_mask,
 
 
 def _create_model_from_scratch(albert_config, is_training, input_ids,
-                               input_mask, segment_ids, use_one_hot_embeddings):
+                               input_mask, segment_ids, use_one_hot_embeddings,
+                               use_einsum):
   """Creates an ALBERT model from scratch/config."""
   model = modeling.AlbertModel(
       config=albert_config,
@@ -52,12 +53,13 @@ def _create_model_from_scratch(albert_config, is_training, input_ids,
       input_ids=input_ids,
       input_mask=input_mask,
       token_type_ids=segment_ids,
-      use_one_hot_embeddings=use_one_hot_embeddings)
+      use_one_hot_embeddings=use_one_hot_embeddings,
+      use_einsum=use_einsum)
   return (model.get_pooled_output(), model.get_sequence_output())
 
 
 def create_albert(albert_config, is_training, input_ids, input_mask,
-                  segment_ids, use_one_hot_embeddings, hub_module):
+                  segment_ids, use_one_hot_embeddings, use_einsum, hub_module):
   """Creates an ALBERT, either from TF-Hub or from scratch."""
   if hub_module:
     tf.logging.info("creating model from hub_module: %s", hub_module)
@@ -67,7 +69,7 @@ def create_albert(albert_config, is_training, input_ids, input_mask,
     tf.logging.info("creating model from albert_config")
     return _create_model_from_scratch(albert_config, is_training, input_ids,
                                       input_mask, segment_ids,
-                                      use_one_hot_embeddings)
+                                      use_one_hot_embeddings, use_einsum)
 
 
 def create_vocab(vocab_file, do_lower_case, spm_model_file, hub_module):

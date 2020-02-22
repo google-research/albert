@@ -777,6 +777,7 @@ def create_model(albert_config, is_training, input_ids, input_mask, segment_ids,
       input_mask=input_mask,
       segment_ids=segment_ids,
       use_one_hot_embeddings=use_one_hot_embeddings,
+      use_einsum=True,
       hub_module=hub_module)
 
   hidden_size = output_layer.shape[-1].value

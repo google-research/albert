@@ -173,14 +173,25 @@ flags.DEFINE_integer(
     "num_tpu_cores", 8,
     "Only used if `use_tpu` is True. Total number of TPU cores to use.")
 
+flags.DEFINE_bool(
+    "use_einsum", True,
+    "Whether to use tf.einsum or tf.reshape+tf.matmul for dense layers. Must "
+    "be set to False for TFLite compatibility.")
+
+flags.DEFINE_string(
+    "export_dir",
+    default=None,
+    help=("The directory where the exported SavedModel will be stored."))
+
 
 def validate_flags_or_throw(albert_config):
   """Validate the input FLAGS or throw an exception."""
   tokenization.validate_case_matches_checkpoint(FLAGS.do_lower_case,
                                                 FLAGS.init_checkpoint)
 
-  if not FLAGS.do_train and not FLAGS.do_predict:
-    raise ValueError("At least one of `do_train` or `do_predict` must be True.")
+  if not FLAGS.do_train and not FLAGS.do_predict and not FLAGS.export_dir:
+    err_msg = "At least one of `do_train` or `do_predict` or `export_dir`" + "must be True."
+    raise ValueError(err_msg)
 
   if FLAGS.do_train:
     if not FLAGS.train_file:
@@ -209,6 +220,29 @@ def validate_flags_or_throw(albert_config):
     raise ValueError(
         "The max_seq_length (%d) must be greater than max_query_length "
         "(%d) + 3" % (FLAGS.max_seq_length, FLAGS.max_query_length))
+
+
+def build_squad_serving_input_fn(seq_length):
+  """Builds a serving input fn for raw input."""
+
+  def _seq_serving_input_fn():
+    """Serving input fn for raw images."""
+    input_ids = tf.placeholder(
+        shape=[1, seq_length], name="input_ids", dtype=tf.int32)
+    input_mask = tf.placeholder(
+        shape=[1, seq_length], name="input_mask", dtype=tf.int32)
+    segment_ids = tf.placeholder(
+        shape=[1, seq_length], name="segment_ids", dtype=tf.int32)
+
+    inputs = {
+        "input_ids": input_ids,
+        "input_mask": input_mask,
+        "segment_ids": segment_ids
+    }
+    return tf.estimator.export.ServingInputReceiver(features=inputs,
+                                                    receiver_tensors=inputs)
+
+  return _seq_serving_input_fn
 
 
 def main(_):
@@ -251,11 +285,11 @@ def main(_):
   train_examples = None
   num_train_steps = None
   num_warmup_steps = None
-  train_examples = squad_utils.read_squad_examples(
-      input_file=FLAGS.train_file, is_training=True)
-  num_train_steps = int(
-      len(train_examples) / FLAGS.train_batch_size * FLAGS.num_train_epochs)
   if FLAGS.do_train:
+    train_examples = squad_utils.read_squad_examples(
+        input_file=FLAGS.train_file, is_training=True)
+    num_train_steps = int(
+        len(train_examples) / FLAGS.train_batch_size * FLAGS.num_train_epochs)
     num_warmup_steps = int(num_train_steps * FLAGS.warmup_proportion)
 
     # Pre-shuffle the input to avoid having to make a very large shuffle
@@ -271,6 +305,7 @@ def main(_):
       num_warmup_steps=num_warmup_steps,
       use_tpu=FLAGS.use_tpu,
       use_one_hot_embeddings=FLAGS.use_tpu,
+      use_einsum=FLAGS.use_einsum,
       hub_module=FLAGS.albert_hub_module_handle)
 
   # If TPU is not available, this will fall back to normal Estimator on CPU
@@ -487,6 +522,25 @@ def main(_):
       tf.logging.info("  %s = %s", key, str(result[key]))
       writer.write("%s = %s\n" % (key, str(result[key])))
     writer.write("best perf happened at step: {}".format(global_step))
+
+  if FLAGS.export_dir:
+    tf.gfile.MakeDirs(FLAGS.export_dir)
+    squad_serving_input_fn = (
+        build_squad_serving_input_fn(FLAGS.max_seq_length))
+    tf.logging.info("Starting to export model.")
+    subfolder = estimator.export_saved_model(
+        export_dir_base=os.path.join(FLAGS.export_dir, "saved_model"),
+        serving_input_receiver_fn=squad_serving_input_fn)
+
+    tf.logging.info("Starting to export TFLite.")
+    converter = tf.lite.TFLiteConverter.from_saved_model(
+        subfolder,
+        input_arrays=["input_ids", "input_mask", "segment_ids"],
+        output_arrays=["start_logits", "end_logits"])
+    float_model = converter.convert()
+    tflite_file = os.path.join(FLAGS.export_dir, "albert_model.tflite")
+    with tf.gfile.GFile(tflite_file, "wb") as f:
+      f.write(float_model)
 
 
 if __name__ == "__main__":

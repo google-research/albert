@@ -157,6 +157,7 @@ class AlbertModel(object):
                input_mask=None,
                token_type_ids=None,
                use_one_hot_embeddings=False,
+               use_einsum=True,
                scope=None):
     """Constructor for AlbertModel.
 
@@ -169,6 +170,8 @@ class AlbertModel(object):
       token_type_ids: (optional) int32 Tensor of shape [batch_size, seq_length].
       use_one_hot_embeddings: (optional) bool. Whether to use one-hot word
         embeddings or tf.embedding_lookup() for the word embeddings.
+      use_einsum: (optional) bool. Whether to use einsum or reshape+matmul for
+        dense layers
       scope: (optional) variable scope. Defaults to "bert".
 
     Raises:
@@ -195,12 +198,12 @@ class AlbertModel(object):
         # Perform embedding lookup on the word ids.
         (self.word_embedding_output,
          self.output_embedding_table) = embedding_lookup(
-            input_ids=input_ids,
-            vocab_size=config.vocab_size,
-            embedding_size=config.embedding_size,
-            initializer_range=config.initializer_range,
-            word_embedding_name="word_embeddings",
-            use_one_hot_embeddings=use_one_hot_embeddings)
+             input_ids=input_ids,
+             vocab_size=config.vocab_size,
+             embedding_size=config.embedding_size,
+             initializer_range=config.initializer_range,
+             word_embedding_name="word_embeddings",
+             use_one_hot_embeddings=use_one_hot_embeddings)
 
         # Add positional embeddings and token type embeddings, then layer
         # normalize and perform dropout.
@@ -217,7 +220,6 @@ class AlbertModel(object):
             dropout_prob=config.hidden_dropout_prob)
 
       with tf.variable_scope("encoder"):
-
         # Run the stacked transformer.
         # `sequence_output` shape = [batch_size, seq_length, hidden_size].
         self.all_encoder_layers = transformer_model(
@@ -233,7 +235,8 @@ class AlbertModel(object):
             hidden_dropout_prob=config.hidden_dropout_prob,
             attention_probs_dropout_prob=config.attention_probs_dropout_prob,
             initializer_range=config.initializer_range,
-            do_return_all_layers=True)
+            do_return_all_layers=True,
+            use_einsum=use_einsum)
 
       self.sequence_output = self.all_encoder_layers[-1]
       # The "pooler" converts the encoded sequence tensor of shape
@@ -531,7 +534,8 @@ def embedding_postprocessor(input_tensor,
                             position_embedding_name="position_embeddings",
                             initializer_range=0.02,
                             max_position_embeddings=512,
-                            dropout_prob=0.1):
+                            dropout_prob=0.1,
+                            use_one_hot_embeddings=True):
   """Performs various post-processing on a word embedding tensor.
 
   Args:
@@ -552,6 +556,8 @@ def embedding_postprocessor(input_tensor,
       used with this model. This can be longer than the sequence length of
       input_tensor, but cannot be shorter.
     dropout_prob: float. Dropout probability applied to the final output tensor.
+    use_one_hot_embeddings: bool. If True, use one-hot method for word
+      embeddings. If False, use `tf.nn.embedding_lookup()`.
 
   Returns:
     float tensor with same shape as `input_tensor`.
@@ -575,12 +581,16 @@ def embedding_postprocessor(input_tensor,
         shape=[token_type_vocab_size, width],
         initializer=create_initializer(initializer_range))
     # This vocab will be small so we always do one-hot here, since it is always
-    # faster for a small vocabulary.
-    flat_token_type_ids = tf.reshape(token_type_ids, [-1])
-    one_hot_ids = tf.one_hot(flat_token_type_ids, depth=token_type_vocab_size)
-    token_type_embeddings = tf.matmul(one_hot_ids, token_type_table)
-    token_type_embeddings = tf.reshape(token_type_embeddings,
-                                       [batch_size, seq_length, width])
+    # faster for a small vocabulary, unless converting to tflite model.
+    if use_one_hot_embeddings:
+      flat_token_type_ids = tf.reshape(token_type_ids, [-1])
+      one_hot_ids = tf.one_hot(flat_token_type_ids, depth=token_type_vocab_size)
+      token_type_embeddings = tf.matmul(one_hot_ids, token_type_table)
+      token_type_embeddings = tf.reshape(token_type_embeddings,
+                                         [batch_size, seq_length, width])
+    else:
+      token_type_embeddings = tf.nn.embedding_lookup(token_type_table,
+                                                     token_type_ids)
     output += token_type_embeddings
 
   if use_position_embeddings:
@@ -618,11 +628,40 @@ def embedding_postprocessor(input_tensor,
   return output
 
 
+def einsum_via_matmul(input_tensor, w, num_inner_dims):
+  """Implements einsum via matmul and reshape ops.
+
+  Args:
+    input_tensor: float Tensor of shape [<batch_dims>, <inner_dims>].
+    w: float Tensor of shape [<inner_dims>, <outer_dims>].
+    num_inner_dims: int. number of dimensions to use for inner products.
+
+  Returns:
+    float Tensor of shape [<batch_dims>, <outer_dims>].
+  """
+  input_shape = get_shape_list(input_tensor)
+  w_shape = get_shape_list(w)
+  batch_dims = input_shape[: -num_inner_dims]
+  inner_dims = input_shape[-num_inner_dims:]
+  outer_dims = w_shape[num_inner_dims:]
+  inner_dim = np.prod(inner_dims)
+  outer_dim = np.prod(outer_dims)
+  if num_inner_dims > 1:
+    input_tensor = tf.reshape(input_tensor, batch_dims + [inner_dim])
+  if len(w_shape) > 2:
+    w = tf.reshape(w, [inner_dim, outer_dim])
+  ret = tf.matmul(input_tensor, w)
+  if len(outer_dims) > 1:
+    ret = tf.reshape(ret, batch_dims + outer_dims)
+  return ret
+
+
 def dense_layer_3d(input_tensor,
                    num_attention_heads,
                    head_size,
                    initializer,
                    activation,
+                   use_einsum,
                    name=None):
   """A dense layer with 3D kernel.
 
@@ -632,6 +671,7 @@ def dense_layer_3d(input_tensor,
     head_size: The size per attention head.
     initializer: Kernel initializer.
     activation: Actication function.
+    use_einsum: bool. Whether to use einsum or reshape+matmul for dense layers.
     name: The name scope of this layer.
 
   Returns:
@@ -652,7 +692,10 @@ def dense_layer_3d(input_tensor,
         shape=[num_attention_heads * head_size],
         initializer=tf.zeros_initializer)
     b = tf.reshape(b, [num_attention_heads, head_size])
-    ret = tf.einsum("BFH,HND->BFND", input_tensor, w)
+    if use_einsum:
+      ret = tf.einsum("BFH,HND->BFND", input_tensor, w)
+    else:
+      ret = einsum_via_matmul(input_tensor, w, 1)
     ret += b
   if activation is not None:
     return activation(ret)
@@ -665,6 +708,7 @@ def dense_layer_3d_proj(input_tensor,
                         head_size,
                         initializer,
                         activation,
+                        use_einsum,
                         name=None):
   """A dense layer with 3D kernel for projection.
 
@@ -672,17 +716,17 @@ def dense_layer_3d_proj(input_tensor,
     input_tensor: float Tensor of shape [batch,from_seq_length,
       num_attention_heads, size_per_head].
     hidden_size: The size of hidden layer.
-    num_attention_heads: The size of output dimension.
     head_size: The size of head.
     initializer: Kernel initializer.
     activation: Actication function.
+    use_einsum: bool. Whether to use einsum or reshape+matmul for dense layers.
     name: The name scope of this layer.
 
   Returns:
     float logits Tensor.
   """
   input_shape = get_shape_list(input_tensor)
-  num_attention_heads= input_shape[2]
+  num_attention_heads = input_shape[2]
   with tf.variable_scope(name):
     w = tf.get_variable(
         name="kernel",
@@ -691,7 +735,10 @@ def dense_layer_3d_proj(input_tensor,
     w = tf.reshape(w, [num_attention_heads, head_size, hidden_size])
     b = tf.get_variable(
         name="bias", shape=[hidden_size], initializer=tf.zeros_initializer)
-    ret = tf.einsum("BFND,NDH->BFH", input_tensor, w)
+    if use_einsum:
+      ret = tf.einsum("BFND,NDH->BFH", input_tensor, w)
+    else:
+      ret = einsum_via_matmul(input_tensor, w, 2)
     ret += b
   if activation is not None:
     return activation(ret)
@@ -703,6 +750,7 @@ def dense_layer_2d(input_tensor,
                    output_size,
                    initializer,
                    activation,
+                   use_einsum,
                    num_attention_heads=1,
                    name=None):
   """A dense layer with 2D kernel.
@@ -712,6 +760,7 @@ def dense_layer_2d(input_tensor,
     output_size: The size of output dimension.
     initializer: Kernel initializer.
     activation: Activation function.
+    use_einsum: bool. Whether to use einsum or reshape+matmul for dense layers.
     num_attention_heads: number of attention head in attention layer.
     name: The name scope of this layer.
 
@@ -728,7 +777,10 @@ def dense_layer_2d(input_tensor,
         initializer=initializer)
     b = tf.get_variable(
         name="bias", shape=[output_size], initializer=tf.zeros_initializer)
-    ret = tf.einsum("BFH,HO->BFO", input_tensor, w)
+    if use_einsum:
+      ret = tf.einsum("BFH,HO->BFO", input_tensor, w)
+    else:
+      ret = tf.matmul(input_tensor, w)
     ret += b
   if activation is not None:
     return activation(ret)
@@ -793,7 +845,8 @@ def attention_layer(from_tensor,
                     initializer_range=0.02,
                     batch_size=None,
                     from_seq_length=None,
-                    to_seq_length=None):
+                    to_seq_length=None,
+                    use_einsum=True):
   """Performs multi-headed attention from `from_tensor` to `to_tensor`.
 
   Args:
@@ -817,6 +870,7 @@ def attention_layer(from_tensor,
       of the 3D version of the `from_tensor`.
     to_seq_length: (Optional) If the input is 2D, this might be the seq length
       of the 3D version of the `to_tensor`.
+    use_einsum: bool. Whether to use einsum or reshape+matmul for dense layers
 
   Returns:
     float Tensor of shape [batch_size, from_seq_length, num_attention_heads,
@@ -853,14 +907,17 @@ def attention_layer(from_tensor,
 
   # `query_layer` = [B, F, N, H]
   q = dense_layer_3d(from_tensor, num_attention_heads, size_per_head,
-                     create_initializer(initializer_range), query_act, "query")
+                     create_initializer(initializer_range), query_act,
+                     use_einsum, "query")
 
   # `key_layer` = [B, T, N, H]
   k = dense_layer_3d(to_tensor, num_attention_heads, size_per_head,
-                     create_initializer(initializer_range), key_act, "key")
+                     create_initializer(initializer_range), key_act,
+                     use_einsum, "key")
   # `value_layer` = [B, T, N, H]
   v = dense_layer_3d(to_tensor, num_attention_heads, size_per_head,
-                     create_initializer(initializer_range), value_act, "value")
+                     create_initializer(initializer_range), value_act,
+                     use_einsum, "value")
   q = tf.transpose(q, [0, 2, 1, 3])
   k = tf.transpose(k, [0, 2, 1, 3])
   v = tf.transpose(v, [0, 2, 1, 3])
@@ -883,7 +940,8 @@ def attention_ffn_block(layer_input,
                         intermediate_size=3072,
                         intermediate_act_fn=None,
                         initializer_range=0.02,
-                        hidden_dropout_prob=0.0):
+                        hidden_dropout_prob=0.0,
+                        use_einsum=True):
   """A network with attention-ffn as sub-block.
 
   Args:
@@ -903,6 +961,7 @@ def attention_ffn_block(layer_input,
     initializer_range: float. Range of the weight initializer.
     hidden_dropout_prob: (optional) float. Dropout probability of the hidden
       layer.
+    use_einsum: bool. Whether to use einsum or reshape+matmul for dense layers
 
   Returns:
     layer output
@@ -916,7 +975,8 @@ def attention_ffn_block(layer_input,
           attention_mask=attention_mask,
           num_attention_heads=num_attention_heads,
           attention_probs_dropout_prob=attention_probs_dropout_prob,
-          initializer_range=initializer_range)
+          initializer_range=initializer_range,
+          use_einsum=use_einsum)
 
     # Run a linear projection of `hidden_size` then add a residual
     # with `layer_input`.
@@ -927,6 +987,7 @@ def attention_ffn_block(layer_input,
           attention_head_size,
           create_initializer(initializer_range),
           None,
+          use_einsum=use_einsum,
           name="dense")
       attention_output = dropout(attention_output, hidden_dropout_prob)
   attention_output = layer_norm(attention_output + layer_input)
@@ -937,6 +998,7 @@ def attention_ffn_block(layer_input,
           intermediate_size,
           create_initializer(initializer_range),
           intermediate_act_fn,
+          use_einsum=use_einsum,
           num_attention_heads=num_attention_heads,
           name="dense")
       with tf.variable_scope("output"):
@@ -945,6 +1007,7 @@ def attention_ffn_block(layer_input,
             hidden_size,
             create_initializer(initializer_range),
             None,
+            use_einsum=use_einsum,
             num_attention_heads=num_attention_heads,
             name="dense")
       ffn_output = dropout(ffn_output, hidden_dropout_prob)
@@ -964,7 +1027,8 @@ def transformer_model(input_tensor,
                       hidden_dropout_prob=0.1,
                       attention_probs_dropout_prob=0.1,
                       initializer_range=0.02,
-                      do_return_all_layers=False):
+                      do_return_all_layers=False,
+                      use_einsum=True):
   """Multi-headed, multi-layer Transformer from "Attention is All You Need".
 
   This is almost an exact implementation of the original Transformer encoder.
@@ -997,6 +1061,7 @@ def transformer_model(input_tensor,
       normal).
     do_return_all_layers: Whether to also return all layers or just the final
       layer.
+    use_einsum: bool. Whether to use einsum or reshape+matmul for dense layers
 
   Returns:
     float Tensor of shape [batch_size, seq_length, hidden_size], the final
@@ -1018,7 +1083,7 @@ def transformer_model(input_tensor,
   if input_width != hidden_size:
     prev_output = dense_layer_2d(
         input_tensor, hidden_size, create_initializer(initializer_range),
-        None, name="embedding_hidden_mapping_in")
+        None, use_einsum=use_einsum, name="embedding_hidden_mapping_in")
   else:
     prev_output = input_tensor
   with tf.variable_scope("transformer", reuse=tf.AUTO_REUSE):
@@ -1030,10 +1095,17 @@ def transformer_model(input_tensor,
           for inner_group_idx in range(inner_group_num):
             with tf.variable_scope("inner_group_%d" % inner_group_idx):
               layer_output = attention_ffn_block(
-                  layer_output, hidden_size, attention_mask,
-                  num_attention_heads, attention_head_size,
-                  attention_probs_dropout_prob, intermediate_size,
-                  intermediate_act_fn, initializer_range, hidden_dropout_prob)
+                  layer_input=layer_output,
+                  hidden_size=hidden_size,
+                  attention_mask=attention_mask,
+                  num_attention_heads=num_attention_heads,
+                  attention_head_size=attention_head_size,
+                  attention_probs_dropout_prob=attention_probs_dropout_prob,
+                  intermediate_size=intermediate_size,
+                  intermediate_act_fn=intermediate_act_fn,
+                  initializer_range=initializer_range,
+                  hidden_dropout_prob=hidden_dropout_prob,
+                  use_einsum=use_einsum)
               prev_output = layer_output
               all_layer_outputs.append(layer_output)
   if do_return_all_layers:

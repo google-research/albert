@@ -23,6 +23,7 @@ import random
 import re
 
 import modeling
+import numpy as np
 import six
 from six.moves import range
 import tensorflow.compat.v1 as tf
@@ -136,6 +137,32 @@ class AlbertModelTest(tf.test.TestCase):
     obj = json.loads(config.to_json_string())
     self.assertEqual(obj["vocab_size"], 99)
     self.assertEqual(obj["hidden_size"], 37)
+
+  def test_einsum_via_matmul(self):
+    batch_size = 8
+    seq_length = 12
+    num_attention_heads = 3
+    head_size = 6
+    hidden_size = 10
+
+    input_tensor = np.random.uniform(0, 1,
+                                     [batch_size, seq_length, hidden_size])
+    input_tensor = tf.constant(input_tensor, dtype=tf.float32)
+    w = np.random.uniform(0, 1, [hidden_size, num_attention_heads, head_size])
+    w = tf.constant(w, dtype=tf.float32)
+    ret1 = tf.einsum("BFH,HND->BFND", input_tensor, w)
+    ret2 = modeling.einsum_via_matmul(input_tensor, w, 1)
+    self.assertAllClose(ret1, ret2)
+
+    input_tensor = np.random.uniform(0, 1,
+                                     [batch_size, seq_length,
+                                      num_attention_heads, head_size])
+    input_tensor = tf.constant(input_tensor, dtype=tf.float32)
+    w = np.random.uniform(0, 1, [num_attention_heads, head_size, hidden_size])
+    w = tf.constant(w, dtype=tf.float32)
+    ret1 = tf.einsum("BFND,NDH->BFH", input_tensor, w)
+    ret2 = modeling.einsum_via_matmul(input_tensor, w, 2)
+    self.assertAllClose(ret1, ret2)
 
   def run_tester(self, tester):
     with self.test_session() as sess:
