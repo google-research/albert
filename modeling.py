@@ -217,7 +217,8 @@ class AlbertModel(object):
             position_embedding_name="position_embeddings",
             initializer_range=config.initializer_range,
             max_position_embeddings=config.max_position_embeddings,
-            dropout_prob=config.hidden_dropout_prob)
+            dropout_prob=config.hidden_dropout_prob,
+            use_one_hot_embeddings=use_one_hot_embeddings)
 
       with tf.variable_scope("encoder"):
         # Run the stacked transformer.
