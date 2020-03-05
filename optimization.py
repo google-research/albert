@@ -27,7 +27,8 @@ from tensorflow.contrib import tpu as contrib_tpu
 
 
 def create_optimizer(loss, init_lr, num_train_steps, num_warmup_steps, use_tpu,
-                     optimizer="adamw", poly_power=1.0, start_warmup_step=0):
+                     optimizer="adamw", poly_power=1.0, start_warmup_step=0,
+                     colocate_gradients_with_ops=False):
   """Creates an optimizer training op."""
   global_step = tf.train.get_or_create_global_step()
 
@@ -95,7 +96,8 @@ def create_optimizer(loss, init_lr, num_train_steps, num_warmup_steps, use_tpu,
     optimizer = contrib_tpu.CrossShardOptimizer(optimizer)
 
   tvars = tf.trainable_variables()
-  grads = tf.gradients(loss, tvars)
+  grads = tf.gradients(
+      loss, tvars, colocate_gradients_with_ops=colocate_gradients_with_ops)
 
   # This is how the model was pre-trained.
   (grads, _) = tf.clip_by_global_norm(grads, clip_norm=1.0)
