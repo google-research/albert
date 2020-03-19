@@ -21,7 +21,6 @@ from __future__ import division
 from __future__ import print_function
 
 import collections
-import re
 import unicodedata
 import six
 from six.moves import range
@@ -30,57 +29,6 @@ import tensorflow_hub as hub
 import sentencepiece as spm
 
 SPIECE_UNDERLINE = u"▁".encode("utf-8")
-
-
-def validate_case_matches_checkpoint(do_lower_case, init_checkpoint):
-  """Checks whether the casing config is consistent with the checkpoint name."""
-
-  # The casing has to be passed in by the user and there is no explicit check
-  # as to whether it matches the checkpoint. The casing information probably
-  # should have been stored in the bert_config.json file, but it's not, so
-  # we have to heuristically detect it to validate.
-
-  if not init_checkpoint:
-    return
-
-  m = re.match("^.*?([A-Za-z0-9_-]+)/bert_model.ckpt",
-               six.ensure_str(init_checkpoint))
-  if m is None:
-    return
-
-  model_name = m.group(1)
-
-  lower_models = [
-      "uncased_L-24_H-1024_A-16", "uncased_L-12_H-768_A-12",
-      "multilingual_L-12_H-768_A-12", "chinese_L-12_H-768_A-12"
-  ]
-
-  cased_models = [
-      "cased_L-12_H-768_A-12", "cased_L-24_H-1024_A-16",
-      "multi_cased_L-12_H-768_A-12"
-  ]
-
-  is_bad_config = False
-  if model_name in lower_models and not do_lower_case:
-    is_bad_config = True
-    actual_flag = "False"
-    case_name = "lowercased"
-    opposite_flag = "True"
-
-  if model_name in cased_models and do_lower_case:
-    is_bad_config = True
-    actual_flag = "True"
-    case_name = "cased"
-    opposite_flag = "False"
-
-  if is_bad_config:
-    raise ValueError(
-        "You passed in `--do_lower_case=%s` with `--init_checkpoint=%s`. "
-        "However, `%s` seems to be a %s model, so you "
-        "should pass in `--do_lower_case=%s` so that the fine-tuning matches "
-        "how the model was pre-training. If this error is wrong, please "
-        "just comment out this check." % (actual_flag, init_checkpoint,
-                                          model_name, case_name, opposite_flag))
 
 
 def preprocess_text(inputs, remove_space=True, lower=False):
@@ -254,7 +202,7 @@ class FullTokenizer(object):
     return FullTokenizer(vocab_file, do_lower_case, spm_model_file)
 
   @classmethod
-  def from_hub_module(cls, hub_module, spm_model_file):
+  def from_hub_module(cls, hub_module, use_spm=True):
     """Get the vocab file and casing info from the Hub module."""
     with tf.Graph().as_default():
       albert_module = hub.Module(hub_module)
@@ -264,6 +212,9 @@ class FullTokenizer(object):
         vocab_file, do_lower_case = sess.run(
             [tokenization_info["vocab_file"],
              tokenization_info["do_lower_case"]])
+    if use_spm:
+      spm_model_file = vocab_file
+      vocab_file = None
     return FullTokenizer(
         vocab_file=vocab_file, do_lower_case=do_lower_case,
         spm_model_file=spm_model_file)
