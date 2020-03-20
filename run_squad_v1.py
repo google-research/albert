@@ -27,7 +27,6 @@ import time
 import fine_tuning_utils
 import modeling
 import squad_utils
-import tokenization
 import six
 import tensorflow.compat.v1 as tf
 
@@ -186,8 +185,6 @@ flags.DEFINE_string(
 
 def validate_flags_or_throw(albert_config):
   """Validate the input FLAGS or throw an exception."""
-  tokenization.validate_case_matches_checkpoint(FLAGS.do_lower_case,
-                                                FLAGS.init_checkpoint)
 
   if not FLAGS.do_train and not FLAGS.do_predict and not FLAGS.export_dir:
     err_msg = "At least one of `do_train` or `do_predict` or `export_dir`" + "must be True."

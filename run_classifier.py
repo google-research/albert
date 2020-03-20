@@ -23,7 +23,6 @@ import time
 import classifier_utils
 import fine_tuning_utils
 import modeling
-import tokenization
 import tensorflow.compat.v1 as tf
 from tensorflow.contrib import cluster_resolver as contrib_cluster_resolver
 from tensorflow.contrib import tpu as contrib_tpu
@@ -157,9 +156,6 @@ def main(_):
       "qnli": classifier_utils.QnliProcessor,
       "wnli": classifier_utils.WnliProcessor,
   }
-
-  tokenization.validate_case_matches_checkpoint(FLAGS.do_lower_case,
-                                                FLAGS.init_checkpoint)
 
   if not FLAGS.do_train and not FLAGS.do_eval and not FLAGS.do_predict:
     raise ValueError(
