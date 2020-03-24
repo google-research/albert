@@ -109,40 +109,44 @@ class RaceProcessor(object):
       if level == "high" and self.middle_only: continue
       cur_dir = os.path.join(data_dir, level)
 
-      cur_path = os.path.join(cur_dir, "all.txt")
-      with tf.gfile.Open(cur_path) as f:
-        for line in f:
-          cur_data = json.loads(line.strip())
+      file_list = os.listdir(cur_dir)
+      for file_name in file_list:
+        if not file_name.endswith('.txt'):
+          continue
+        cur_path = os.path.join(cur_dir, file_name)
+        with tf.gfile.Open(cur_path) as f:
+          for line in f:
+            cur_data = json.loads(line.strip())
 
-          answers = cur_data["answers"]
-          options = cur_data["options"]
-          questions = cur_data["questions"]
-          context = self.process_text(cur_data["article"])
+            answers = cur_data["answers"]
+            options = cur_data["options"]
+            questions = cur_data["questions"]
+            context = self.process_text(cur_data["article"])
 
-          for i in range(len(answers)):
-            label = ord(answers[i]) - ord("A")
-            qa_list = []
+            for i in range(len(answers)):
+              label = ord(answers[i]) - ord("A")
+              qa_list = []
 
-            question = self.process_text(questions[i])
-            for j in range(4):
-              option = self.process_text(options[i][j])
+              question = self.process_text(questions[i])
+              for j in range(4):
+                option = self.process_text(options[i][j])
 
-              if "_" in question:
-                qa_cat = question.replace("_", option)
-              else:
-                qa_cat = " ".join([question, option])
+                if "_" in question:
+                  qa_cat = question.replace("_", option)
+                else:
+                  qa_cat = " ".join([question, option])
 
-              qa_list.append(qa_cat)
+                qa_list.append(qa_cat)
 
-            examples.append(
-                InputExample(
-                    example_id=cur_data["id"],
-                    context_sentence=context,
-                    start_ending=None,
-                    endings=[qa_list[0], qa_list[1], qa_list[2], qa_list[3]],
-                    label=label
-                )
-            )
+              examples.append(
+                  InputExample(
+                      example_id=cur_data["id"],
+                      context_sentence=context,
+                      start_ending=None,
+                      endings=[qa_list[0], qa_list[1], qa_list[2], qa_list[3]],
+                      label=label
+                  )
+              )
 
     return examples
 
