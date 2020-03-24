@@ -314,3 +314,15 @@ spm_train \
 --character_coverage=0.99995 --model_type=unigram
 
 ```
+
+Preprocessing
+=============
+
+```
+pip install -r albert/requirements.txt
+python3 create_pretraining_data.py \
+  --input_file="../rawtext.txt.1,../rawtext.txt.2,../rawtext.txt.3"  \
+  --output_file="../examples.1.tfrecord,../examples.2.tfrecord,../examples.3.tfrecord" \
+  --vocab_file="../tokenizer.vocab" \
+  --spm_model_file="../tokenizer.model"
+```

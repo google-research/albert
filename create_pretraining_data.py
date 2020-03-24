@@ -19,6 +19,8 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+import concurrent.futures
+import traceback
 import collections
 import random
 from albert import tokenization
@@ -91,6 +93,12 @@ flags.DEFINE_float(
     "short_seq_prob", 0.1,
     "Probability of creating sequences which are shorter than the "
     "maximum length.")
+
+flags.DEFINE_bool(
+  "parallel", False,
+  "Option to use ProcessPoolExector to speed up create_pretraining_data when "
+  "working with multiple input files. Output files will be written next to "
+  "input files if non are passed. Debugging might be harder if set to True.")
 
 
 class TrainingInstance(object):
@@ -180,6 +188,11 @@ def write_instance_to_example_files(instances, tokenizer, max_seq_length,
     tf_example = tf.train.Example(features=tf.train.Features(feature=features))
 
     writers[writer_index].write(tf_example.SerializeToString())
+
+    # randomly flush, so larger corpora don't stress memories as much
+    if random.randint(1, 100) >= 97:
+      writers[writer_index].flush()
+
     writer_index = (writer_index + 1) % len(writers)
 
     total_written += 1
@@ -220,7 +233,6 @@ def create_training_instances(input_files, tokenizer, max_seq_length,
                               max_predictions_per_seq, rng):
   """Create `TrainingInstance`s from raw text."""
   all_documents = [[]]
-
   # Input file format:
   # (1) One sentence per line. These should ideally be actual sentences, not
   # entire paragraphs or arbitrary spans of text. (Because we use the
@@ -401,7 +413,7 @@ def _is_start_piece_sp(piece):
   english_chars = set(list("abcdefghijklmnopqrstuvwxyz"))
   if (six.ensure_str(piece).startswith("▁") or
       six.ensure_str(piece).startswith("<") or piece in special_pieces or
-      not all([i.lower() in english_chars.union(special_pieces)
+      not all([str(i).lower() in english_chars.union(special_pieces)
                for i in piece])):
     return True
   else:
@@ -617,6 +629,30 @@ def truncate_seq_pair(tokens_a, tokens_b, max_num_tokens, rng):
       trunc_tokens.pop()
 
 
+def parallel_fn(input_file, output_file, max_seq_length,
+                dupe_factor, short_seq_prob, masked_lm_prob,
+                max_predictions_per_seq, rng):
+  try:
+    tokenizer = tokenization.FullTokenizer(
+      vocab_file=FLAGS.vocab_file, do_lower_case=FLAGS.do_lower_case,
+      spm_model_file=FLAGS.spm_model_file)
+    instances = create_training_instances(
+      [input_file], tokenizer, max_seq_length,
+      dupe_factor, short_seq_prob, masked_lm_prob,
+      max_predictions_per_seq, rng
+    )
+    write_instance_to_example_files(
+      instances,
+      tokenizer,
+      max_seq_length,
+      max_predictions_per_seq,
+      [output_file]
+    )
+  except Exception as e:
+    tf.logging.info("Exception occured " + e)
+    tf.logging.info(traceback.format_exc())
+
+
 def main(_):
   tf.logging.set_verbosity(tf.logging.INFO)
 
@@ -633,20 +669,35 @@ def main(_):
     tf.logging.info("  %s", input_file)
 
   rng = random.Random(FLAGS.random_seed)
-  instances = create_training_instances(
-      input_files, tokenizer, FLAGS.max_seq_length, FLAGS.dupe_factor,
-      FLAGS.short_seq_prob, FLAGS.masked_lm_prob, FLAGS.max_predictions_per_seq,
-      rng)
 
-  tf.logging.info("number of instances: %i", len(instances))
+  if not FLAGS.output_file:
+    tf.logging.info("no outputfiles were passed, using input names as output")
+    output_files = [f"{in_file}.tfrecord" for in_file in FLAGS.input_file.split(",") if in_file]
+  else:
+    output_files = FLAGS.output_file.split(",")
 
-  output_files = FLAGS.output_file.split(",")
-  tf.logging.info("*** Writing to output files ***")
-  for output_file in output_files:
-    tf.logging.info("  %s", output_file)
+  if not FLAGS.parallel:
+    instances = create_training_instances(
+        input_files, tokenizer, FLAGS.max_seq_length, FLAGS.dupe_factor,
+        FLAGS.short_seq_prob, FLAGS.masked_lm_prob, FLAGS.max_predictions_per_seq,
+        rng)
+    tf.logging.info("number of instances: %i", len(instances))
+    tf.logging.info("*** Writing to output files ***")
+    for output_file in output_files:
+      tf.logging.info("  %s", output_file)
 
-  write_instance_to_example_files(instances, tokenizer, FLAGS.max_seq_length,
-                                  FLAGS.max_predictions_per_seq, output_files)
+    write_instance_to_example_files(instances, tokenizer, FLAGS.max_seq_length,
+                                    FLAGS.max_predictions_per_seq, output_files)
+  else:
+    if len(input_files) == len(output_files):
+      n_files = len(input_files)
+      with concurrent.futures.ProcessPoolExecutor() as executor:
+        executor.map(
+          parallel_fn, input_files, output_files,
+          [FLAGS.max_seq_length]*n_files, [FLAGS.dupe_factor]*n_files,
+          [FLAGS.short_seq_prob]*n_files, [FLAGS.masked_lm_prob]*n_files,
+          [FLAGS.max_predictions_per_seq]*n_files, [rng]*n_files
+        )
 
 
 if __name__ == "__main__":
