@@ -20,7 +20,7 @@ from __future__ import print_function
 import os
 from absl import app
 from absl import flags
-import modeling
+from albert import modeling
 import tensorflow.compat.v1 as tf
 
 flags.DEFINE_string(

@@ -22,7 +22,7 @@ import json
 import random
 import re
 
-import modeling
+from albert import modeling
 import numpy as np
 import six
 from six.moves import range

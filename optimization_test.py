@@ -16,7 +16,7 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
-import optimization
+from albert import optimization
 from six.moves import range
 from six.moves import zip
 import tensorflow.compat.v1 as tf

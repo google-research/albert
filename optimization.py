@@ -19,7 +19,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 import re
-import lamb_optimizer
+from albert import lamb_optimizer
 import six
 from six.moves import zip
 import tensorflow.compat.v1 as tf

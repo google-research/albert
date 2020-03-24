@@ -22,11 +22,11 @@ from __future__ import print_function
 import collections
 import json
 import os
-import classifier_utils
-import fine_tuning_utils
-import modeling
-import optimization
-import tokenization
+from albert import classifier_utils
+from albert import fine_tuning_utils
+from albert import modeling
+from albert import optimization
+from albert import tokenization
 import tensorflow.compat.v1 as tf
 from tensorflow.contrib import tpu as contrib_tpu
 

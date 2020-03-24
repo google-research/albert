@@ -24,9 +24,9 @@ import json
 import os
 import random
 import time
-import fine_tuning_utils
-import modeling
-import squad_utils
+from albert import fine_tuning_utils
+from albert import modeling
+from albert import squad_utils
 import six
 import tensorflow.compat.v1 as tf
 

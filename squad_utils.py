@@ -25,10 +25,10 @@ import math
 import re
 import string
 import sys
-import fine_tuning_utils
-import modeling
-import optimization
-import tokenization
+from albert import fine_tuning_utils
+from albert import modeling
+from albert import optimization
+from albert import tokenization
 import numpy as np
 import six
 from six.moves import map

@@ -21,10 +21,10 @@ from __future__ import print_function
 import collections
 import csv
 import os
-import fine_tuning_utils
-import modeling
-import optimization
-import tokenization
+from albert import fine_tuning_utils
+from albert import modeling
+from albert import optimization
+from albert import tokenization
 import tensorflow.compat.v1 as tf
 from tensorflow.contrib import data as contrib_data
 from tensorflow.contrib import metrics as contrib_metrics
