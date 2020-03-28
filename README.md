@@ -1,6 +1,10 @@
 ALBERT
 ======
 
+***************New March 28, 2020 ***************
+
+Add a colab [tutorial](https://github.com/google-research/albert/blob/master/albert_glue_fine_tuning_tutorial.ipynb) to run fine-tuning for GLUE datasets.
+
 ***************New January 7, 2020 ***************
 
 v2 TF-Hub models should be working now with TF 1.15, as we removed the
