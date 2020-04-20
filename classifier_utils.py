@@ -916,17 +916,21 @@ def model_fn_builder(albert_config, num_labels, init_checkpoint, learning_rate,
                   "MSE": mse, "eval_loss": loss,}
       elif task_name == "cola":
         def metric_fn(per_example_loss, label_ids, logits, is_real_example):
-          """Compute Matthew's correlations for STS-B."""
+          """Compute Matthew's correlations for COLA."""
           predictions = tf.argmax(logits, axis=-1, output_type=tf.int32)
           # https://en.wikipedia.org/wiki/Matthews_correlation_coefficient
           tp, tp_op = tf.metrics.true_positives(
-              predictions, label_ids, weights=is_real_example)
+              labels=label_ids, predictions=predictions,
+              weights=is_real_example)
           tn, tn_op = tf.metrics.true_negatives(
-              predictions, label_ids, weights=is_real_example)
+              labels=label_ids, predictions=predictions,
+              weights=is_real_example)
           fp, fp_op = tf.metrics.false_positives(
-              predictions, label_ids, weights=is_real_example)
+              labels=label_ids, predictions=predictions,
+              weights=is_real_example)
           fn, fn_op = tf.metrics.false_negatives(
-              predictions, label_ids, weights=is_real_example)
+              labels=label_ids, predictions=predictions,
+              weights=is_real_example)
 
           # Compute Matthew's correlation
           mcc = tf.div_no_nan(

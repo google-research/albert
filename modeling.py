@@ -854,10 +854,10 @@ def attention_layer(from_tensor,
     from_tensor: float Tensor of shape [batch_size, from_seq_length,
       from_width].
     to_tensor: float Tensor of shape [batch_size, to_seq_length, to_width].
-    attention_mask: (optional) int32 Tensor of shape [batch_size,
-      from_seq_length, to_seq_length]. The values should be 1 or 0. The
-      attention scores will effectively be set to -infinity for any positions in
-      the mask that are 0, and will be unchanged for positions that are 1.
+    attention_mask: (optional) int32 Tensor of shape [batch_size, seq_length].
+      The values should be 1 or 0. The attention scores will effectively
+      be set to -infinity for any positions in the mask that are 0, and
+      will be unchanged for positions that are 1.
     num_attention_heads: int. Number of attention heads.
     query_act: (optional) Activation function for the query transform.
     key_act: (optional) Activation function for the key transform.
@@ -949,10 +949,10 @@ def attention_ffn_block(layer_input,
     layer_input: float Tensor of shape [batch_size, from_seq_length,
       from_width].
     hidden_size: (optional) int, size of hidden layer.
-    attention_mask: (optional) int32 Tensor of shape [batch_size,
-      from_seq_length, to_seq_length]. The values should be 1 or 0. The
-      attention scores will effectively be set to -infinity for any positions in
-      the mask that are 0, and will be unchanged for positions that are 1.
+    attention_mask: (optional) int32 Tensor of shape [batch_size, seq_length].
+      The values should be 1 or 0. The attention scores will effectively be set
+      to -infinity for any positions in the mask that are 0, and will be
+      unchanged for positions that are 1.
     num_attention_heads: int. Number of attention heads.
     attention_head_size: int. Size of attention head.
     attention_probs_dropout_prob: float. dropout probability for attention_layer
@@ -1042,9 +1042,9 @@ def transformer_model(input_tensor,
 
   Args:
     input_tensor: float Tensor of shape [batch_size, seq_length, hidden_size].
-    attention_mask: (optional) int32 Tensor of shape [batch_size, seq_length,
-      seq_length], with 1 for positions that can be attended to and 0 in
-      positions that should not be.
+    attention_mask: (optional) int32 Tensor of shape [batch_size, seq_length],
+      with 1 for positions that can be attended to and 0 in positions that
+      should not be.
     hidden_size: int. Hidden size of the Transformer.
     num_hidden_layers: int. Number of layers (blocks) in the Transformer.
     num_hidden_groups: int. Number of group for the hidden layers, parameters
