@@ -91,6 +91,26 @@ def get_mlm_logits(model, albert_config, mlm_positions):
   return logits
 
 
+def get_sop_log_probs(model, albert_config):
+  """Get loss and log probs for the next sentence prediction."""
+  input_tensor = model.get_pooled_output()
+  # Simple binary classification. Note that 0 is "next sentence" and 1 is
+  # "random sentence". This weight matrix is not used after pre-training.
+  with tf.variable_scope("cls/seq_relationship"):
+    output_weights = tf.get_variable(
+        "output_weights",
+        shape=[2, albert_config.hidden_size],
+        initializer=modeling.create_initializer(
+            albert_config.initializer_range))
+    output_bias = tf.get_variable(
+        "output_bias", shape=[2], initializer=tf.zeros_initializer())
+
+    logits = tf.matmul(input_tensor, output_weights, transpose_b=True)
+    logits = tf.nn.bias_add(logits, output_bias)
+    log_probs = tf.nn.log_softmax(logits, axis=-1)
+    return log_probs
+
+
 def module_fn(is_training):
   """Module function."""
   input_ids = tf.placeholder(tf.int32, [None, None], "input_ids")
@@ -111,6 +131,7 @@ def module_fn(is_training):
       use_einsum=FLAGS.use_einsum)
 
   mlm_logits = get_mlm_logits(model, albert_config, mlm_positions)
+  sop_log_probs = get_sop_log_probs(model, albert_config)
 
   vocab_model_path = os.path.join(FLAGS.albert_directory, "30k-clean.model")
   vocab_file_path = os.path.join(FLAGS.albert_directory, "30k-clean.vocab")
@@ -137,6 +158,15 @@ def module_fn(is_training):
       outputs=dict(
           sequence_output=model.get_sequence_output(),
           pooled_output=model.get_pooled_output()))
+
+  hub.add_signature(
+      name="sop",
+      inputs=dict(
+          input_ids=input_ids, input_mask=input_mask, segment_ids=segment_ids),
+      outputs=dict(
+          sequence_output=model.get_sequence_output(),
+          pooled_output=model.get_pooled_output(),
+          sop_log_probs=sop_log_probs))
 
   hub.add_signature(
       name="mlm",
