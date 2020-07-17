@@ -168,7 +168,7 @@ python -m albert.run_classifier \
   --do_eval \
   --do_predict \
   --do_lower_case \
-  --max_seq_length=128 \
+  --max_seq_length=512 \
   --optimizer=adamw \
   --task_name=MNLI \
   --warmup_step=1000 \
