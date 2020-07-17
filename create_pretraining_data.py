@@ -402,7 +402,7 @@ def _is_start_piece_sp(piece):
   if (six.ensure_str(piece).startswith("▁") or
       six.ensure_str(piece).startswith("<") or piece in special_pieces or
       not all([i.lower() in english_chars.union(special_pieces)
-               for i in piece])):
+               for i in six.ensure_str(piece)])):
     return True
   else:
     return False
