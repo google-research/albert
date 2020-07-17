@@ -18,6 +18,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import math
 import os
 import time
 from albert import classifier_utils
@@ -144,8 +145,17 @@ flags.DEFINE_string(
     "export_dir", None,
     "The directory where the exported SavedModel will be stored.")
 
+flags.DEFINE_float(
+    "threshold_to_export", float("nan"),
+    "The threshold value that should be used with the exported classifier. "
+    "When specified, the threshold will be attached to the exported "
+    "SavedModel, and served along with the predictions. Please use the "
+    "saved model cli ("
+    "https://www.tensorflow.org/guide/saved_model#details_of_the_savedmodel_command_line_interface"
+    ") to view the output signature of the threshold.")
 
-def serving_input_receiver_fn():
+
+def _serving_input_receiver_fn():
   """Creates an input function for serving."""
   seq_len = FLAGS.max_seq_length
   serialized_example = tf.placeholder(
@@ -169,6 +179,20 @@ def serving_input_receiver_fn():
 
   return tf.estimator.export.ServingInputReceiver(
       features=feature_map, receiver_tensors=serialized_example)
+
+
+def _add_threshold_to_model_fn(model_fn, threshold):
+  """Adds the classifier threshold to the given model_fn."""
+
+  def new_model_fn(features, labels, mode, params):
+    spec = model_fn(features, labels, mode, params)
+    threshold_tensor = tf.constant(threshold, dtype=tf.float32)
+    default_serving_export = spec.export_outputs[
+        tf.saved_model.signature_constants.DEFAULT_SERVING_SIGNATURE_DEF_KEY]
+    default_serving_export.outputs["threshold"] = threshold_tensor
+    return spec
+
+  return new_model_fn
 
 
 def main(_):
@@ -264,6 +288,9 @@ def main(_):
       task_name=task_name,
       hub_module=FLAGS.albert_hub_module_handle,
       optimizer=FLAGS.optimizer)
+
+  if not math.isnan(FLAGS.threshold_to_export):
+    model_fn = _add_threshold_to_model_fn(model_fn, FLAGS.threshold_to_export)
 
   # If TPU is not available, this will fall back to normal Estimator on CPU
   # or GPU.
@@ -518,7 +545,7 @@ def main(_):
     tf.logging.info("Starting to export model.")
     subfolder = estimator.export_saved_model(
         export_dir_base=FLAGS.export_dir,
-        serving_input_receiver_fn=serving_input_receiver_fn,
+        serving_input_receiver_fn=_serving_input_receiver_fn,
         checkpoint_path=checkpoint_path)
     tf.logging.info("Model exported to %s.", subfolder)
 
