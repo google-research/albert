@@ -29,6 +29,7 @@ from albert import modeling
 from albert import squad_utils
 import six
 import tensorflow.compat.v1 as tf
+from tensorflow.compat.v1 import estimator as tf_estimator
 
 from tensorflow.contrib import cluster_resolver as contrib_cluster_resolver
 from tensorflow.contrib import tpu as contrib_tpu
@@ -236,7 +237,7 @@ def build_squad_serving_input_fn(seq_length):
         "input_mask": input_mask,
         "segment_ids": segment_ids
     }
-    return tf.estimator.export.ServingInputReceiver(features=inputs,
+    return tf_estimator.export.ServingInputReceiver(features=inputs,
                                                     receiver_tensors=inputs)
 
   return _seq_serving_input_fn
