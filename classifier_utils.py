@@ -25,6 +25,7 @@ from albert import modeling
 from albert import optimization
 from albert import tokenization
 import tensorflow.compat.v1 as tf
+from tensorflow.compat.v1 import estimator as tf_estimator
 from tensorflow.contrib import data as contrib_data
 from tensorflow.contrib import metrics as contrib_metrics
 from tensorflow.contrib import tpu as contrib_tpu
@@ -835,7 +836,7 @@ def model_fn_builder(albert_config, num_labels, init_checkpoint, learning_rate,
     else:
       is_real_example = tf.ones(tf.shape(label_ids), dtype=tf.float32)
 
-    is_training = (mode == tf.estimator.ModeKeys.TRAIN)
+    is_training = (mode == tf_estimator.ModeKeys.TRAIN)
 
     (total_loss, per_example_loss, probabilities, logits, predictions) = \
         create_model(albert_config, is_training, input_ids, input_mask,
@@ -867,7 +868,7 @@ def model_fn_builder(albert_config, num_labels, init_checkpoint, learning_rate,
                       init_string)
 
     output_spec = None
-    if mode == tf.estimator.ModeKeys.TRAIN:
+    if mode == tf_estimator.ModeKeys.TRAIN:
 
       train_op = optimization.create_optimizer(
           total_loss, learning_rate, num_train_steps, num_warmup_steps,
@@ -878,7 +879,7 @@ def model_fn_builder(albert_config, num_labels, init_checkpoint, learning_rate,
           loss=total_loss,
           train_op=train_op,
           scaffold_fn=scaffold_fn)
-    elif mode == tf.estimator.ModeKeys.EVAL:
+    elif mode == tf_estimator.ModeKeys.EVAL:
       if task_name not in ["sts-b", "cola"]:
         def metric_fn(per_example_loss, label_ids, logits, is_real_example):
           predictions = tf.argmax(logits, axis=-1, output_type=tf.int32)

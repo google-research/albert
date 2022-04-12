@@ -25,6 +25,7 @@ from albert import classifier_utils
 from albert import fine_tuning_utils
 from albert import modeling
 import tensorflow.compat.v1 as tf
+from tensorflow.compat.v1 import estimator as tf_estimator
 from tensorflow.contrib import cluster_resolver as contrib_cluster_resolver
 from tensorflow.contrib import tpu as contrib_tpu
 
@@ -177,7 +178,7 @@ def _serving_input_receiver_fn():
       t = tf.to_int32(t)
     feature_map[name] = t
 
-  return tf.estimator.export.ServingInputReceiver(
+  return tf_estimator.export.ServingInputReceiver(
       features=feature_map, receiver_tensors=serialized_example)
 
 
