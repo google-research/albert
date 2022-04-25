@@ -12,7 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# Lint as: python2, python3
 """Run masked LM/next sentence masked_lm pre-training for ALBERT."""
 
 from __future__ import absolute_import
