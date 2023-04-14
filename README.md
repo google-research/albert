@@ -1,16 +1,17 @@
-ALBERT
-======
+<h1 align="center" >ALBERT</h1>
 
-***************New March 28, 2020 ***************
+<hr>
+<div align="center">
+<h3>New March 28, 2020</h3>
 
 Add a colab [tutorial](https://github.com/google-research/albert/blob/master/albert_glue_fine_tuning_tutorial.ipynb) to run fine-tuning for GLUE datasets.
 
-***************New January 7, 2020 ***************
+<h3>New January 7, 2020</h3>
+v2 TF-Hub models should be working now with TF 1.15, as we removed the native Einsum op from the graph. See updated TF-Hub links below.
 
-v2 TF-Hub models should be working now with TF 1.15, as we removed the
-native Einsum op from the graph. See updated TF-Hub links below.
+<h3>New December 30, 2019</h3>
 
-***************New December 30, 2019 ***************
+</div>
 
 Chinese models are released. We would like to thank [CLUE team ](https://github.com/CLUEbenchmark/CLUE) for providing the training data.
 
@@ -29,6 +30,7 @@ Version 2 of ALBERT models is released.
 In this version, we apply 'no dropout', 'additional training data' and 'long training time' strategies to all models. We train ALBERT-base for 10M steps and other models for 3M steps.
 
 The result comparison to the v1 models is as followings:
+<div align="center">
 
 |                | Average  | SQuAD1.1 | SQuAD2.0 | MNLI     | SST-2    | RACE     |
 |----------------|----------|----------|----------|----------|----------|----------|
@@ -42,6 +44,8 @@ The result comparison to the v1 models is as followings:
 |ALBERT-large    |82.4      |90.6/83.9 | 82.3/79.4|83.5      |91.7      | 68.5     |
 |ALBERT-xlarge   |85.5      |92.5/86.1 | 86.1/83.1|86.4      |92.4      | 74.8     |
 |ALBERT-xxlarge  |91.0      |94.8/89.3 | 90.2/87.4|90.8      |96.9      | 86.5     |
+
+</div>
 
 The comparison shows that for ALBERT-base, ALBERT-large, and ALBERT-xlarge, v2 is much better than v1, indicating the importance of applying the above three strategies. On average, ALBERT-xxlarge is slightly worse than the v1, because of the following two reasons: 1) Training additional 1.5 M steps (the only difference between these two models is training for 1.5M steps and 3M steps) did not lead to significant performance improvement. 2) For v1, we did a little bit hyperparameter search among the parameters sets given by BERT, Roberta, and XLnet. For v2, we simply adopt the parameters from v1 except for RACE, where we use a learning rate of 1e-5 and 0 [ALBERT DR](https://arxiv.org/pdf/1909.11942.pdf) (dropout rate for ALBERT in finetuning). The original (v1) RACE hyperparameter will cause model divergence for v2 models. Given that the downstream tasks are sensitive to the fine-tuning hyperparameters, we should be careful about so called slight improvements.
 
@@ -66,6 +70,7 @@ Results
 
 Performance of ALBERT on GLUE benchmark results using a single-model setup on
 dev:
+<div align="center">
 
 | Models            | MNLI     | QNLI     | QQP      | RTE      | SST      | MRPC     | CoLA     | STS      |
 |-------------------|----------|----------|----------|----------|----------|----------|----------|----------|
@@ -74,9 +79,11 @@ dev:
 | RoBERTa-large     | 90.2     | 94.7     | **92.2** | 86.6     | 96.4     | **90.9** | 68.0     | 92.4     |
 | ALBERT (1M)       | 90.4     | 95.2     | 92.0     | 88.1     | 96.8     | 90.2     | 68.7     | 92.7     |
 | ALBERT (1.5M)     | **90.8** | **95.3** | **92.2** | **89.2** | **96.9** | **90.9** | **71.4** | **93.0** |
+</div>
 
 Performance of ALBERT-xxl on SQuaD and RACE benchmarks using a single-model
 setup:
+<div align="center">
 
 |Models                    | SQuAD1.1 dev  | SQuAD2.0 dev  | SQuAD2.0 test | RACE test (Middle/High) |
 |--------------------------|---------------|---------------|---------------|-------------------------|
@@ -87,7 +94,7 @@ setup:
 |XLNet + SG-Net Verifier++ | -             | -             | 90.1/87.2     | -                       |
 |ALBERT (1M)               | 94.8/89.2     | 89.9/87.2     | -             | 86.0 (88.2/85.1)        |
 |ALBERT (1.5M)             | **94.8/89.3** | **90.2/87.4** | **90.9/88.1** | **86.5 (89.0/85.5)**    |
-
+</div>
 
 Pre-trained Models
 ==================
